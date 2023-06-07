@@ -4,16 +4,21 @@
 #include "helper.h"
 #include "rotation.h"
 #include "ray.h"
+#include "constant.h"
 
 class Camera {
 private:
     std::vector<std::vector<Vec3>> focal_plane_in_world_BASE;
     std::vector<std::vector<Vec3>> focal_plane_in_world;
-
-    float tilted_angle = 0;
 public:
     Vec3 position = VEC3_ZERO;
     Vec3 rotation = VEC3_ZERO;
+
+    float tilted_angle = 0;
+    float max_tilt = 80;
+
+    int WIDTH;
+    int HEIGHT;
     
     float FOV = 105.0f; // degree
     float focal_length = 0.67f;
@@ -22,9 +27,11 @@ public:
     int ray_per_pixel = 1;
     float blur_rate = 0.000f;
 
+    float max_range = 50.0f;
+
 
     Camera() {
-        focal_plane_in_world = std::vector<std::vector<Vec3>>(WIDTH, v_height);
+        focal_plane_in_world = v_screen;
         focal_plane_in_world_BASE = focal_plane_in_world;
     }
 
@@ -34,7 +41,7 @@ public:
         Vec3 rd = VEC3_ZERO;
         if(blur_rate != 0.0f) {
             rd = random_direction().normalize() * blur_rate;
-            rd *= random_val();;
+            rd *= random_val();
         }
 
         Vec3 endpoint = position + focal_plane_in_world[x][y];
@@ -43,6 +50,7 @@ public:
         Ray new_ray;
         new_ray.direction = direction;
         new_ray.origin = position + rd;
+        new_ray.max_range = max_range;
 
         return new_ray;
     }
@@ -53,16 +61,14 @@ public:
             for(int y = 0; y < HEIGHT; y++) {
                 // store ray collision on viewport for later use
                 // this is the position if camera looking direction is (0, 0, 1)
-                if(focal_plane_in_world[x][y] == VEC3_ZERO) {
-                    float viewport_width = 2 * focal_length * tan(deg2rad(FOV/2));
-                    float viewport_height = viewport_width * HEIGHT/(float)WIDTH;
+                float viewport_width = 2 * focal_length * tan(deg2rad(FOV/2));
+                float viewport_height = viewport_width * HEIGHT/(float)WIDTH;
 
-                    float _w = viewport_width * (0.5f - (x - 0.5f)/WIDTH);
-                    float _h = viewport_height * (0.5f - (y - 0.5f)/HEIGHT);
+                float _w = viewport_width * (0.5f - (x - 0.5f)/WIDTH);
+                float _h = viewport_height * (0.5f - (y - 0.5f)/HEIGHT);
 
-                    focal_plane_in_world[x][y] = Vec3(-_w, _h, focal_length);
-                    focal_plane_in_world_BASE[x][y] = focal_plane_in_world[x][y];
-                }
+                focal_plane_in_world[x][y] = Vec3(-_w, _h, focal_length);
+                focal_plane_in_world_BASE[x][y] = focal_plane_in_world[x][y];
             }
         // set camera rotation if has
         if(rotation != VEC3_ZERO) {
@@ -108,10 +114,17 @@ public:
     }
     void reset_rotation() {
         rotation = VEC3_ZERO;
+        tilted_angle = 0;
         focal_plane_in_world = focal_plane_in_world_BASE;
     }
     void tilt(float a) {
         tilted_angle += a;
+        if(fabs(tilted_angle) > deg2rad(max_tilt)) {
+            float old_a = tilted_angle;
+            if(tilted_angle < 0) tilted_angle = -deg2rad(max_tilt);
+            else tilted_angle = deg2rad(max_tilt);
+            a -= old_a - tilted_angle;
+        }
         // default looking dir
         Vec3 dir = {0, 0, 1};
         dir = -_rotate_y(dir, rotation.y + pi/2);
@@ -120,7 +133,10 @@ public:
                 focal_plane_in_world[x][y] = _rotate_on_axis(focal_plane_in_world[x][y], dir, a);
     }
     void pan(float a) {
+        float ta = tilted_angle;
+        tilt(-ta);
         rotate_y(a);
+        tilt(ta);
     }
     void move_foward(float ammount) {
         Vec3 dir = Vec3(sin(rotation.y), sin(tilted_angle), cos(rotation.y));

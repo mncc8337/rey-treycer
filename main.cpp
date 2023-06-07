@@ -1,12 +1,9 @@
+#include <SDL2/SDL_events.h>
 #include <thread>
 
 // debug
-/* #include "CImg/CImg.h" */
-#include <string>
 #include <iostream>
 #include <chrono>
-#include <sstream>
-#include <iomanip>
 
 #include "camera.h"
 #include "constant.h"
@@ -14,25 +11,34 @@
 #include "objects.h"
 #include "rotation.h"
 
-/* using namespace cimg_library; */
+// #include "nlohmann/json.hpp"
+// using json = nlohmann::json;
 
-const int thread_width = WIDTH / column_threads;
-const int thread_height = HEIGHT/ row_threads;
+int WIDTH = 128;
+int HEIGHT = 75;
+
+int thread_width = WIDTH / column_threads;
+int thread_height = HEIGHT/ row_threads;
 
 bool running = true;
-int frames_count = 0;
 int stationary_frames_count = 0;
 bool camera_moving = false;
+double delay = 0;
+int selecting_object = -1;
+std::string selecting_object_type;
+
+int mouse_pos_x;
+int mouse_pos_y;
 
 // ray trace pixel like a checker board
 // the other pixel color is the average color of neighbor pixel
 // reduce render time by half but also reduce image quality
 bool lazy_ray_trace = true;
 
-SDL sdl(const_cast<char*>(std::string("ray tracer").c_str()));
+SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
 
 std::vector<std::vector<Vec3>> screen_color = v_screen;
-HitInfo first_ray_hitinfo[WIDTH][HEIGHT];
+HitInfo first_ray_hitinfo[MAX_WIDTH][MAX_HEIGHT];
 std::vector<std::vector<Vec3>> first_ray_direction = v_screen;
 
 Camera camera;
@@ -40,11 +46,12 @@ Camera camera;
 // all object in the scene
 ObjectContainer object_container;
 
-const Vec3 sky_color = Vec3(0.51f, 0.7f, 1.0f) * 1.0f;
+Vec3 up_sky_color = Vec3(0.51f, 0.7f, 1.0f) * 1.0f;
+Vec3 down_sky_color = WHITE;
 Vec3 get_environment_light(Vec3 dir) {
     // dir must be normalized
     float level = (dir.normalize().y + 1) / 2;
-    return lerp(WHITE, sky_color, level);
+    return lerp(down_sky_color, up_sky_color, level);
 }
 
 // get closest hit of a ray
@@ -59,6 +66,7 @@ HitInfo ray_collision(Ray ray) {
         HitInfo h = ray.cast_to(sphere);
         if(h.did_hit and h.distance < closest_hit.distance) {
             closest_hit = h;
+            closest_hit.object_id = i;
         }
     }
     return closest_hit;
@@ -121,7 +129,7 @@ Vec3 ray_trace(int x, int y) {
                     refraction_direction = refraction(h.normal, old_direction, ri_ratio);
                     current_refractive_index = h.material.refractive_index;
                     ray.hit_from_inside = !ray.hit_from_inside;
-                }
+        }
 
                 ray.direction = refraction_direction;
             }
@@ -165,6 +173,7 @@ void drawing_rectangle_thread(int from_x, int to_x, int from_y, int to_y) {
         }
 }
 void draw_frame() {
+    auto start = std::chrono::system_clock::now();
     sdl.enable_drawing();
     std::vector<std::thread> threads;
     for(int w = 0; w < column_threads; w++)
@@ -180,7 +189,7 @@ void draw_frame() {
     for(auto& t: threads) t.join();
 
     if(lazy_ray_trace) {
-        for(int i = 0; i < (WIDTH >> 1); i++)
+        for(int i = 0; i < (WIDTH >> 1) + (WIDTH % 2 == 1); i++)
             for(int y = 0; y < HEIGHT; y++) {
                 int x = i * 2;
                 if(y % 2 == 1) x += 1;
@@ -206,15 +215,57 @@ void draw_frame() {
             }
     }
     sdl.disable_drawing();
+    auto end = std::chrono::system_clock::now();
+
+    std::chrono::duration<double> elapsed = end - start;
+    delay = elapsed.count() * 1000;
 }
 
-bool keyhold[8];
+int render_frame_count = 3;
+float blur_rate = 0.01f;
+
+void update_camera() {
+    float tilted_a = camera.tilted_angle;
+    float panned_a = camera.rotation.y;
+    camera.reset_rotation();
+    camera.WIDTH = WIDTH;
+    camera.HEIGHT = HEIGHT;
+    camera.rays_init();
+
+    camera.tilt(tilted_a);
+    camera.pan(panned_a);
+
+    thread_width = WIDTH / column_threads;
+    thread_height = HEIGHT/ row_threads;
+    stationary_frames_count = 0;
+
+    draw_frame();
+}
+
+bool keyhold[12];
 void check_input() {
     while(running) {
+        SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
+
+        sdl.process_gui_event();
 	    if(!SDL_WaitEvent(&(sdl.event))) continue;
         running = sdl.event.type != SDL_QUIT;
 
-        bool keyup = sdl.event.type == SDL_KEYUP;
+        if(sdl.event.type == SDL_MOUSEBUTTONDOWN and !sdl.is_hover_over_gui()) {
+            // convert to viewport position
+            int w; int h;
+            SDL_GetWindowSize(sdl.window, &w, &h);
+            mouse_pos_x *= WIDTH / (float)w;
+            mouse_pos_y *= HEIGHT / (float)h;
+
+            HitInfo hit = ray_collision(camera.ray(mouse_pos_x, mouse_pos_y));
+            if(hit.did_hit) {
+                selecting_object = hit.object_id;
+                selecting_object_type = const_cast<char*>(std::string("sphere").c_str());
+            }
+            else selecting_object = -1;
+        }
+
         bool keydown = sdl.event.type == SDL_KEYDOWN;
         switch(sdl.event.key.keysym.sym) {
             case SDLK_UP:
@@ -241,104 +292,53 @@ void check_input() {
             case SDLK_d:
                 keyhold[7] = keydown;
                 break;
-
+            case SDLK_x:
+                keyhold[8] = keydown;
+                break;
+            case SDLK_z:
+                keyhold[9] = keydown;
+                break;
+            case SDLK_LSHIFT:
+                keyhold[10] = keydown;
+                break;
+            case SDLK_LCTRL:
+                keyhold[11] = keydown;
+                break;
         }
     }
 }
 int main() {
+    int id;
+
+    camera.WIDTH = WIDTH;
+    camera.HEIGHT = HEIGHT;
+
     camera.position = {11.2515, 12.5, -5.5125};
-    //camera.rotation = {-0.5, -1.14, 0};
-    camera.max_ray_bounce_count = 100;
+    camera.FOV = 105;
+    camera.focal_length = 10;
+    camera.max_range = 100;
+    camera.max_ray_bounce_count = 50;
     camera.ray_per_pixel = 1;
-    camera.focal_length = 10.0f;
-
-    Sphere sphere;
-    Sphere light;
-
-    light.centre = Vec3(-70, 80, 80);
-    light.radius = 100.0f;
-    light.material.color = BLACK;
-    light.material.roughness = 1.0f;
-    light.material.emission_color = WHITE;
-    light.material.emission_strength = 1.0f;
-    object_container.add_sphere(light);
-
-    light.centre = {4.0f, 8, -4.0f};
-    light.radius = 2.0f;
-    light.material.color = BLACK;
-    light.material.roughness = 1.0f;
-    light.material.emission_color = WHITE;
-    light.material.emission_strength = 1.0f;
-    object_container.add_sphere(light);
-
-    sphere.centre = Vec3(6.0f, 12, 6.0f);
-    sphere.radius = 5.0f;
-    sphere.material.color = Vec3(0.694, 0.7, 0.71);
-    sphere.material.roughness = 0.0f;
-    object_container.add_sphere(sphere);
-
-    sphere.centre = Vec3(-8, 8.5, -5.0f);
-    sphere.radius = 3.5f;
-    sphere.material.color = WHITE;
-    sphere.material.roughness = 0.0f;
-    sphere.material.transparent = true;
-    sphere.material.refractive_index = RI_WATER;
-    object_container.add_sphere(sphere);
-    sphere.material.transparent = false;
-
-    sphere.centre = Vec3(10.0, 20, 0.0f);
-    sphere.radius = 5.0f;
-    sphere.material.color = WHITE;
-    sphere.material.roughness = 0.0f;
-    sphere.material.transparent = true;
-    sphere.material.refractive_index = RI_WATER;
-    object_container.add_sphere(sphere);
-    sphere.material.transparent = false;
-
-    sphere.centre = Vec3(0.0f, -22, 7.0f);
-    sphere.radius = 30.0f;
-    sphere.material.color = Vec3(0.259, 0.529, 0.96);
-    sphere.material.roughness = 0.3f;
-    object_container.add_sphere(sphere);
-
-    sphere.centre = Vec3(-4.5f, 11, 4.5f);
-    sphere.radius = 4.0f;
-    sphere.material.color = Vec3(1, 0.4, 0.4);
-    sphere.material.roughness = 0.0f;
-    object_container.add_sphere(sphere);
-
-    sphere.centre = Vec3(-15.7f, 8.2, 4.5f);
-    sphere.radius = 3.0f;
-    sphere.material.color = Vec3(1, 0.78, 0);
-    sphere.material.roughness = 0.0f;
-    object_container.add_sphere(sphere);
-
-    sphere.centre = Vec3(-20.7f, 2, -5);
-    sphere.radius = 3.0f;
-    sphere.material.color = WHITE;
-    sphere.material.roughness = 1.0f;
-    object_container.add_sphere(sphere);
-
-    sphere.centre = Vec3(15.0f, 6, 0.0f);
-    sphere.radius = 4.0f;
-    sphere.material.color = WHITE;
-    sphere.material.roughness = 1.0f;
-    object_container.add_sphere(sphere);
+    sdl.set_camera_var(&camera);
 
     camera.rays_init();
     optimize_ray_cast();
 
-    float elapsed_time= 0;
-    float avg_delay = 0;
-
     // separate input thread and drawing thread so that input is not delayed
     std::thread input_thread(check_input);
-
     while(running) {
         float speed = 0.5f;
         float rot_speed = 0.1f;
+        if(keyhold[10]) {
+            speed *= 2;
+            rot_speed *= 2;
+        }
+        if(keyhold[11]) {
+            speed /= 4;
+            rot_speed /= 4;
+        }
         bool camera_changed = false;
-        for(int i = 0; i < 8; i++) camera_changed = camera_changed or keyhold[i];
+        for(int i = 0; i < 10; i++) camera_changed = camera_changed or keyhold[i];
         if(keyhold[2]) camera.pan(-rot_speed);
         if(keyhold[3]) camera.pan(rot_speed);
         if(keyhold[0]) camera.tilt(rot_speed);
@@ -347,55 +347,28 @@ int main() {
         if(keyhold[5]) camera.move_foward(-speed);
         if(keyhold[6]) camera.move_left(speed);
         if(keyhold[7]) camera.move_left(-speed);
-        if(camera_changed and camera.blur_rate == 0.0f) optimize_ray_cast();
+        if(keyhold[8]) camera.position.y += speed;
+        if(keyhold[9]) camera.position.y -= speed;
         camera_moving = camera_changed;
 
-        if(camera_moving) {
-            std::cout << camera.position.x << ' ' << camera.position.y << ' ' << camera.position.z << '\n';
-            std::cout << camera.rotation.x << ' ' << camera.rotation.y << ' ' << camera.rotation.z << '\n';
-        }
+        sdl.gui(&lazy_ray_trace, &render_frame_count, &blur_rate, &camera_moving, &stationary_frames_count, delay, &WIDTH, &HEIGHT, &object_container, &camera, update_camera, &up_sky_color, &down_sky_color, &selecting_object, &selecting_object_type);
 
-        auto start = std::chrono::system_clock::now();
-        draw_frame();
-        sdl.swap_buffer();
-        auto end = std::chrono::system_clock::now();
+        if(camera.WIDTH != WIDTH or camera.HEIGHT != HEIGHT)
+            update_camera();
 
-        frames_count++;
+        if(stationary_frames_count <= render_frame_count) draw_frame();
+
+        sdl.render();
+
         stationary_frames_count += 1;
         if(camera_moving) stationary_frames_count = 0;
-        if(stationary_frames_count == 3) {
+        if(stationary_frames_count == 3)
+            camera.blur_rate = blur_rate;
+        else if(stationary_frames_count == 0) {
             camera.blur_rate = 0.0f;
+            optimize_ray_cast();
         }
-        else if(stationary_frames_count == 0)
-            camera.blur_rate = 0.0f;
-
-        std::chrono::duration<double> elapsed = end - start;
-        std::cout << "frame " << frames_count << " takes " << elapsed.count() * 1000 << "ms ";
-        elapsed_time += elapsed.count() * 1000;
-        avg_delay = elapsed_time / frames_count;
-        std::cout << "avg " << avg_delay << "ms\n";
     }
-
-    // if(record) {
-    //     CImg<int> image(WIDTH, HEIGHT, 1, 3);
-    //     for(int x = 0; x < WIDTH; x++)
-    //         for(int y = 0; y < HEIGHT; y++) {
-    //             Vec3 normalized = normalize_color(screen_color[x][y]);
-    //             int COLOR[] = {int(normalized.x * 255), int(normalized.y * 255), int(normalized.z * 255)};
-    //             image.draw_point(x, y, COLOR, 1.0f);
-    //         }
-    //     
-    //     auto t = std::time(nullptr);
-    //     auto tm = *std::localtime(&t);
-    //
-    //     std::ostringstream oss;
-    //     oss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");
-    //     auto str = "res/" + oss.str() + ".bmp";
-    //     char *c = const_cast<char*>(str.c_str());
-    //
-    //     image.save(c);
-    // }
-    std::cout << "avg " << avg_delay << "ms\n";
-
+    sdl.destroy();
     return 0;
 }

@@ -4,6 +4,10 @@
 #include "vec3.h"
 #include "constant.h"
 
+inline char* CHAR(std::string str) {
+    char* chr = const_cast<char*>(str.c_str());
+    return chr;
+}
 inline float deg2rad(float a) {
     return a / 180 * pi;
 }

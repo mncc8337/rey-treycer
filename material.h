@@ -9,7 +9,6 @@ struct Material {
     float emission_strength = 0.0f;
 
     float roughness = 1.0f;
-    float metal = 1.0f;
 
     bool transparent = false;
     float refractive_index = RI_GLASS;

@@ -3,10 +3,23 @@
 #include "constant.h"
 #include "material.h"
 
-struct Sphere {
+struct AABB {
+    Vec3 min;
+    Vec3 max;
+};
+class Sphere {
+public:
     Vec3 centre = VEC3_ZERO;
     float radius = 1;
     Material material;
+    AABB aabb = {VEC3_ZERO, VEC3_ZERO};
+
+    void calculate_aabb() {
+        aabb = {
+            centre - Vec3(radius, radius, radius),
+            centre + Vec3(radius, radius, radius)
+        };
+    }
 };
 struct Triangle {
     Vec3 vert[3];
@@ -34,6 +47,8 @@ public:
         }
         spheres[index] = s;
         spheres_available[index] = true;
+        spheres[index].calculate_aabb();
+
         // return index of new added sphere
         return index;
     }
@@ -50,5 +65,6 @@ public:
     // load sphere new setting
     void set_sphere(int index, Sphere sphere) {
         spheres[index] = sphere;
+        spheres[index].calculate_aabb();
     }
 };
