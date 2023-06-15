@@ -1,8 +1,12 @@
 #pragma once
 #include <random>
 #include <math.h>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 #include "vec3.h"
 #include "constant.h"
+#include "objects.h"
 
 inline char* CHAR(std::string str) {
     char* chr = const_cast<char*>(str.c_str());
@@ -72,4 +76,39 @@ inline float reflectance(float cosine, float ri) {
     float r0 = (1-ri) / (1+ri);
     r0 *= r0;
     return r0 + (1-r0) * pow((1 - cosine),5);
+}
+
+inline Mesh load_mesh_from(std::string sFilename) {
+	Mesh out;
+    std::ifstream f(sFilename);
+	if (!f.is_open()) {
+        std::cout << "failed to load file\n";
+		return out;
+	}
+
+	// Local cache of verts
+    std::vector<Vec3> verts;
+	while (!f.eof()) {
+		char line[128];
+		f.getline(line, 128);
+        std::stringstream s;
+		s << line;
+		char junk;
+		if (line[0] == 'v') {
+			Vec3 v = VEC3_ZERO;
+			s >> junk >> v.x >> v.y >> v.z;
+			verts.push_back(v);
+		}
+		if (line[0] == 'f') {
+			int f[3];
+			s >> junk >> f[0] >> f[1] >> f[2];
+            Triangle tri;
+            tri.vert[0] = verts[f[0] - 1];
+            tri.vert[1] = verts[f[1] - 1];
+            tri.vert[2] = verts[f[2] - 1];
+			out.tris.push_back(tri);
+		}
+	}
+    out.calculate_AABB();
+	return out;
 }

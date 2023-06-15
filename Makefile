@@ -24,7 +24,7 @@ UNAME_S := $(shell uname -s)
 
 CXXFLAGS = -std=c++11 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends
 CXXFLAGS += -g -Wall -Wformat
-LIBS = -lm -lpthread -lX11
+LIBS = -lm -lpthread -lX11 -lSDL2_image
 
 ##---------------------------------------------------------------------
 ## BUILD FLAGS PER PLATFORM

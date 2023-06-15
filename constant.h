@@ -6,9 +6,9 @@ const int MAX_WIDTH = 2000;
 const int MAX_HEIGHT = 2000;
 
 // how many threads in a row
-const int row_threads = 1;
+const int row_threads = 2;
 // how many threads in a column
-const int column_threads = 1;
+const int column_threads = 4;
 
 // other
 
@@ -26,8 +26,8 @@ const Vec3 VEC3_ZERO(0, 0, 0);
 const float RI_AIR = 1.0003f;
 const float RI_WATER = 1.333f;
 const float RI_GLASS = 1.52f;
-const float RI_FLINT_GLASS = 1.69f;
-const float RI_DIAMOND = 2.417f;
+const float RI_FLINT_GLASS = 1.66f;
+const float RI_DIAMOND = 2.4f;
 
 const float pi = 3.141592654f;
 

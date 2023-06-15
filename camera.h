@@ -2,7 +2,7 @@
 #include "vec3.h"
 #include "objects.h"
 #include "helper.h"
-#include "rotation.h"
+#include "transformation.h"
 #include "ray.h"
 #include "constant.h"
 
@@ -11,8 +11,9 @@ private:
     std::vector<std::vector<Vec3>> focal_plane_in_world_BASE;
     std::vector<std::vector<Vec3>> focal_plane_in_world;
 public:
-    Vec3 position = VEC3_ZERO;
+    // cannot change rotation on the fly
     Vec3 rotation = VEC3_ZERO;
+    Vec3 position = VEC3_ZERO;
 
     float tilted_angle = 0;
     float max_tilt = 80;
@@ -25,7 +26,7 @@ public:
 
     int max_ray_bounce_count = 10;
     int ray_per_pixel = 1;
-    float blur_rate = 0.000f;
+    float blur_rate = 0.001f;
 
     float max_range = 50.0f;
 
@@ -70,12 +71,6 @@ public:
                 focal_plane_in_world[x][y] = Vec3(-_w, _h, focal_length);
                 focal_plane_in_world_BASE[x][y] = focal_plane_in_world[x][y];
             }
-        // set camera rotation if has
-        if(rotation != VEC3_ZERO) {
-            rotate(rotation);
-            // because rotate_camera() double the variable camera_rotation by 2 so
-            rotation /= 2;
-        }
     }
     void set_rotation(float x, float y, float z) {
         reset_rotation();
@@ -117,6 +112,8 @@ public:
         tilted_angle = 0;
         focal_plane_in_world = focal_plane_in_world_BASE;
     }
+
+    // tilt should not change the camera rotation variable
     void tilt(float a) {
         tilted_angle += a;
         if(fabs(tilted_angle) > deg2rad(max_tilt)) {
@@ -133,10 +130,7 @@ public:
                 focal_plane_in_world[x][y] = _rotate_on_axis(focal_plane_in_world[x][y], dir, a);
     }
     void pan(float a) {
-        float ta = tilted_angle;
-        tilt(-ta);
         rotate_y(a);
-        tilt(ta);
     }
     void move_foward(float ammount) {
         Vec3 dir = Vec3(sin(rotation.y), sin(tilted_angle), cos(rotation.y));

@@ -7,9 +7,9 @@
 
 #include "camera.h"
 #include "constant.h"
-#include "graphic.h"
+#include "graphics.h"
 #include "objects.h"
-#include "rotation.h"
+#include "transformation.h"
 
 // #include "nlohmann/json.hpp"
 // using json = nlohmann::json;
@@ -26,6 +26,10 @@ bool camera_moving = false;
 double delay = 0;
 int selecting_object = -1;
 std::string selecting_object_type;
+bool keyhold[12];
+
+int render_frame_count = 3;
+float blur_rate = 0.01f;
 
 int mouse_pos_x;
 int mouse_pos_y;
@@ -33,12 +37,14 @@ int mouse_pos_y;
 // ray trace pixel like a checker board
 // the other pixel color is the average color of neighbor pixel
 // reduce render time by half but also reduce image quality
-bool lazy_ray_trace = true;
+bool lazy_ray_trace = false;
 
 SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
 
+std::vector<HitInfo> h_height(MAX_HEIGHT);
+std::vector<std::vector<HitInfo>> first_ray_hitinfo(MAX_WIDTH, h_height);
+
 std::vector<std::vector<Vec3>> screen_color = v_screen;
-HitInfo first_ray_hitinfo[MAX_WIDTH][MAX_HEIGHT];
 std::vector<std::vector<Vec3>> first_ray_direction = v_screen;
 
 Camera camera;
@@ -56,19 +62,39 @@ Vec3 get_environment_light(Vec3 dir) {
 
 // get closest hit of a ray
 HitInfo ray_collision(Ray ray) {
-    HitInfo closest_hit;
-    closest_hit.distance = 1e6;
+    HitInfo closest_hit_sphere;
+    closest_hit_sphere.distance = 1e6;
     // find the first intersect point in all sphere
     for(int i = 0; i < object_container.sphere_array_length; i++) {
         if(!object_container.spheres_available[i]) continue;
         Sphere sphere = object_container.spheres[i];
 
         HitInfo h = ray.cast_to(sphere);
-        if(h.did_hit and h.distance < closest_hit.distance) {
-            closest_hit = h;
-            closest_hit.object_id = i;
+        if(h.did_hit and h.distance < closest_hit_sphere.distance) {
+            closest_hit_sphere = h;
+            closest_hit_sphere.object_type = "sphere";
+            closest_hit_sphere.object_id = i;
         }
     }
+
+    HitInfo closest_hit_mesh;
+    closest_hit_mesh.distance = 1e6;
+    for(int i = 0; i < object_container.mesh_array_length; i++) {
+        if(!object_container.meshes_available[i]) continue;
+        Mesh mesh = object_container.meshes[i];
+
+        HitInfo h = ray.cast_to(mesh);
+        if(h.did_hit and h.distance < closest_hit_mesh.distance) {
+            closest_hit_mesh = h;
+            closest_hit_mesh.object_type = "mesh";
+            closest_hit_mesh.object_id = i;
+        }
+    }
+
+    HitInfo closest_hit;
+    if(closest_hit_mesh.distance < closest_hit_sphere.distance) closest_hit = closest_hit_mesh;
+    else closest_hit = closest_hit_sphere;
+
     return closest_hit;
 }
 
@@ -129,7 +155,7 @@ Vec3 ray_trace(int x, int y) {
                     refraction_direction = refraction(h.normal, old_direction, ri_ratio);
                     current_refractive_index = h.material.refractive_index;
                     ray.hit_from_inside = !ray.hit_from_inside;
-        }
+                }
 
                 ray.direction = refraction_direction;
             }
@@ -172,6 +198,7 @@ void drawing_rectangle_thread(int from_x, int to_x, int from_y, int to_y) {
             sdl.draw_pixel(x, y, normalized);
         }
 }
+
 void draw_frame() {
     auto start = std::chrono::system_clock::now();
     sdl.enable_drawing();
@@ -184,7 +211,6 @@ void draw_frame() {
             int to_y = (h + 1) * thread_height - 1;
             threads.push_back(std::thread(drawing_rectangle_thread, from_x, to_x, from_y, to_y));
         }
-
     // wait till all threads are finished
     for(auto& t: threads) t.join();
 
@@ -219,10 +245,9 @@ void draw_frame() {
 
     std::chrono::duration<double> elapsed = end - start;
     delay = elapsed.count() * 1000;
+    
+    stationary_frames_count += 1;
 }
-
-int render_frame_count = 3;
-float blur_rate = 0.01f;
 
 void update_camera() {
     float tilted_a = camera.tilted_angle;
@@ -242,80 +267,12 @@ void update_camera() {
     draw_frame();
 }
 
-bool keyhold[12];
-void check_input() {
-    while(running) {
-        SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
-
-        sdl.process_gui_event();
-	    if(!SDL_WaitEvent(&(sdl.event))) continue;
-        running = sdl.event.type != SDL_QUIT;
-
-        if(sdl.event.type == SDL_MOUSEBUTTONDOWN and !sdl.is_hover_over_gui()) {
-            // convert to viewport position
-            int w; int h;
-            SDL_GetWindowSize(sdl.window, &w, &h);
-            mouse_pos_x *= WIDTH / (float)w;
-            mouse_pos_y *= HEIGHT / (float)h;
-
-            HitInfo hit = ray_collision(camera.ray(mouse_pos_x, mouse_pos_y));
-            if(hit.did_hit) {
-                selecting_object = hit.object_id;
-                selecting_object_type = const_cast<char*>(std::string("sphere").c_str());
-            }
-            else selecting_object = -1;
-        }
-
-        bool keydown = sdl.event.type == SDL_KEYDOWN;
-        switch(sdl.event.key.keysym.sym) {
-            case SDLK_UP:
-                keyhold[0] = keydown;
-                break;
-            case SDLK_DOWN:
-                keyhold[1] = keydown;
-                break;
-            case SDLK_LEFT:
-                keyhold[2] = keydown;
-                break;
-            case SDLK_RIGHT:
-                keyhold[3] = keydown;
-                break;
-            case SDLK_w:
-                keyhold[4] = keydown;
-                break;
-            case SDLK_s:
-                keyhold[5] = keydown;
-                break;
-            case SDLK_a:
-                keyhold[6] = keydown;
-                break;
-            case SDLK_d:
-                keyhold[7] = keydown;
-                break;
-            case SDLK_x:
-                keyhold[8] = keydown;
-                break;
-            case SDLK_z:
-                keyhold[9] = keydown;
-                break;
-            case SDLK_LSHIFT:
-                keyhold[10] = keydown;
-                break;
-            case SDLK_LCTRL:
-                keyhold[11] = keydown;
-                break;
-        }
-    }
-}
 int main() {
-    int id;
-
-    camera.WIDTH = WIDTH;
     camera.HEIGHT = HEIGHT;
 
-    camera.position = {11.2515, 12.5, -5.5125};
+    camera.position.z = -10;
     camera.FOV = 105;
-    camera.focal_length = 10;
+    camera.focal_length = 0.5f;
     camera.max_range = 100;
     camera.max_ray_bounce_count = 50;
     camera.ray_per_pixel = 1;
@@ -324,14 +281,71 @@ int main() {
     camera.rays_init();
     optimize_ray_cast();
 
-    // separate input thread and drawing thread so that input is not delayed
-    std::thread input_thread(check_input);
     while(running) {
+	    while(SDL_PollEvent(&(sdl.event))) {
+            SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
+            sdl.process_gui_event();
+            running = sdl.event.type != SDL_QUIT;
+
+            if(sdl.event.type == SDL_MOUSEBUTTONDOWN and !sdl.is_hover_over_gui()) {
+                // convert to viewport position
+                int w; int h;
+                SDL_GetWindowSize(sdl.window, &w, &h);
+                mouse_pos_x *= WIDTH / (float)w;
+                mouse_pos_y *= HEIGHT / (float)h;
+
+                HitInfo hit = ray_collision(camera.ray(mouse_pos_x, mouse_pos_y));
+                if(hit.did_hit) {
+                    selecting_object = hit.object_id;
+                    selecting_object_type = const_cast<char*>(hit.object_type.c_str());
+                    }
+                else selecting_object = -1;
+            }
+
+            bool keydown = sdl.event.type == SDL_KEYDOWN;
+            switch(sdl.event.key.keysym.sym) {
+                case SDLK_UP:
+                    keyhold[0] = keydown;
+                    break;
+                case SDLK_DOWN:
+                    keyhold[1] = keydown;
+                    break;
+                case SDLK_LEFT:
+                    keyhold[2] = keydown;
+                    break;
+                case SDLK_RIGHT:
+                    keyhold[3] = keydown;
+                    break;
+                case SDLK_w:
+                    keyhold[4] = keydown;
+                    break;
+                case SDLK_s:
+                    keyhold[5] = keydown;
+                    break;
+                case SDLK_a:
+                    keyhold[6] = keydown;
+                    break;
+                case SDLK_d:
+                    keyhold[7] = keydown;
+                    break;
+                case SDLK_x:
+                    keyhold[8] = keydown;
+                    break;
+                case SDLK_z:
+                    keyhold[9] = keydown;
+                    break;
+                case SDLK_LSHIFT:
+                    keyhold[10] = keydown;
+                    break;
+                case SDLK_LCTRL:
+                    keyhold[11] = keydown;
+                    break;
+            }
+        }
         float speed = 0.5f;
         float rot_speed = 0.1f;
         if(keyhold[10]) {
             speed *= 2;
-            rot_speed *= 2;
         }
         if(keyhold[11]) {
             speed /= 4;
@@ -351,16 +365,6 @@ int main() {
         if(keyhold[9]) camera.position.y -= speed;
         camera_moving = camera_changed;
 
-        sdl.gui(&lazy_ray_trace, &render_frame_count, &blur_rate, &camera_moving, &stationary_frames_count, delay, &WIDTH, &HEIGHT, &object_container, &camera, update_camera, &up_sky_color, &down_sky_color, &selecting_object, &selecting_object_type);
-
-        if(camera.WIDTH != WIDTH or camera.HEIGHT != HEIGHT)
-            update_camera();
-
-        if(stationary_frames_count <= render_frame_count) draw_frame();
-
-        sdl.render();
-
-        stationary_frames_count += 1;
         if(camera_moving) stationary_frames_count = 0;
         if(stationary_frames_count == 3)
             camera.blur_rate = blur_rate;
@@ -368,6 +372,15 @@ int main() {
             camera.blur_rate = 0.0f;
             optimize_ray_cast();
         }
+
+        sdl.gui(&lazy_ray_trace, &render_frame_count, &blur_rate, &camera_moving, &stationary_frames_count, delay, &WIDTH, &HEIGHT, &object_container, &camera, update_camera, &up_sky_color, &down_sky_color, &selecting_object, &selecting_object_type, &running);
+
+        if(camera.WIDTH != WIDTH or camera.HEIGHT != HEIGHT)
+            update_camera();
+
+        if(stationary_frames_count <= render_frame_count) draw_frame();
+
+        sdl.render();
     }
     sdl.destroy();
     return 0;

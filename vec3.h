@@ -78,3 +78,9 @@ inline Vec3 operator*(const float t, const Vec3 &u) {
 inline Vec3 operator/(const Vec3 v, const float t) {
     return v * (1/t);
 }
+inline Vec3 operator/(const float t, const Vec3 v) {
+    return Vec3(t/v.x, t/v.y, t/v.z);
+}
+inline Vec3 operator/(const Vec3 u, const Vec3 v) {
+    return u * (1/v);
+}
