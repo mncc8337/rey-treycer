@@ -1,19 +1,3 @@
-#
-# Cross Platform Makefile
-# Compatible with MSYS2/MINGW, Ubuntu 14.04.1 and Mac OS X
-#
-# You will need SDL2 (http://www.libsdl.org):
-# Linux:
-#   apt-get install libsdl2-dev
-# Mac OS X:
-#   brew install sdl2
-# MSYS2:
-#   pacman -S mingw-w64-i686-SDL2
-#
-
-#CXX = g++
-#CXX = clang++
-
 EXE = main
 IMGUI_DIR = ./imgui
 SOURCES = main.cpp
@@ -24,11 +8,7 @@ UNAME_S := $(shell uname -s)
 
 CXXFLAGS = -std=c++11 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends
 CXXFLAGS += -g -Wall -Wformat
-LIBS = -lm -lpthread -lX11 -lSDL2_image
-
-##---------------------------------------------------------------------
-## BUILD FLAGS PER PLATFORM
-##---------------------------------------------------------------------
+LIBS = -lm -lpthread -lX11
 
 ifeq ($(UNAME_S), Linux) #LINUX
 	ECHO_MESSAGE = "Linux"
@@ -55,10 +35,6 @@ ifeq ($(OS), Windows_NT)
 	CXXFLAGS += `pkg-config --cflags sdl2`
 	CFLAGS = $(CXXFLAGS)
 endif
-
-##---------------------------------------------------------------------
-## BUILD RULES
-##---------------------------------------------------------------------
 
 %.o:%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
