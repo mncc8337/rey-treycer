@@ -8,7 +8,7 @@ const int MAX_HEIGHT = 2000;
 // how many threads in a row
 const int row_threads = 2;
 // how many threads in a column
-const int column_threads = 4;
+const int column_threads = 2;
 
 // other
 

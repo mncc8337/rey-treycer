@@ -12,7 +12,7 @@
 //  [X] Renderer: Large meshes support (64k+ vertices) with 16-bit indices.
 
 #pragma once
-#include "../imgui.h"      // IMGUI_IMPL_API
+#include "imgui.h"      // IMGUI_IMPL_API
 
 struct SDL_Renderer;
 

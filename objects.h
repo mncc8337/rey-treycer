@@ -27,6 +27,7 @@ private:
 
 public:
     std::vector<Triangle> tris;
+    std::vector<Triangle> default_tris;
     Vec3 AABB_min = VEC3_ZERO;
     Vec3 AABB_max = VEC3_ZERO;
 
@@ -57,12 +58,15 @@ public:
         return position;
     }
     void set_rotation(Vec3 a) {
+        // reset
+        tris = default_tris;
+
         for(int i = 0; i < (int)tris.size(); i++) {
             for(int j = 0; j < 3; j++) {
                 Vec3* pos = &(tris[i].vert[j]);
-                (*pos) = (*pos) - position;
-                (*pos) = _rotate(*pos, -rotation + a);
-                (*pos) = (*pos) + position;
+                *pos = _scale(*pos, scale);
+                *pos = _rotate(*pos, a);
+                *pos = *pos + position;
             }
         }
         rotation = a;
@@ -71,22 +75,15 @@ public:
         return rotation;
     }
     void set_scale(Vec3 v) {
+        // reset
+        tris = default_tris;
+
         for(int i = 0; i < (int)tris.size(); i++)
             for(int j = 0; j < 3; j++) {
                 Vec3* pos = &(tris[i].vert[j]);
-                (*pos) = (*pos) - position;
-                (*pos) = _rotate_x(*pos, -rotation.x);
-                (*pos) = _rotate_y(*pos, -rotation.y);
-                (*pos) = _rotate_z(*pos, -rotation.z);
-
-                // scale
-                Vec3 factor = v/scale;
-                (*pos) = _scale(*pos, factor);
-
-                (*pos) = _rotate_x(*pos, rotation.x);
-                (*pos) = _rotate_y(*pos, rotation.y);
-                (*pos) = _rotate_z(*pos, rotation.z);
-                (*pos) = (*pos) + position;
+                *pos = _rotate(*pos, rotation);
+                *pos = _scale(*pos, v);
+                *pos = *pos + position;
             }
         scale = v;
     }

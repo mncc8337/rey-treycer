@@ -106,9 +106,10 @@ inline Mesh load_mesh_from(std::string sFilename) {
             tri.vert[0] = verts[f[0] - 1];
             tri.vert[1] = verts[f[1] - 1];
             tri.vert[2] = verts[f[2] - 1];
-			out.tris.push_back(tri);
+			out.default_tris.push_back(tri);
 		}
 	}
+    out.tris = out.default_tris;
     out.calculate_AABB();
 	return out;
 }

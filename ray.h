@@ -44,7 +44,7 @@ struct Ray {
             h.distance = distance;
             h.point = origin + direction * distance;
             h.normal = (h.point - sphere.centre).normalize();
-            h.material = sphere.material; 
+            h.material = sphere.material;
             if(hit_from_inside) {
                 h.normal = -h.normal;
                 h.material.refractive_index = RI_AIR;

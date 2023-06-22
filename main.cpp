@@ -14,11 +14,20 @@
 // #include "nlohmann/json.hpp"
 // using json = nlohmann::json;
 
-int WIDTH = 128;
-int HEIGHT = 75;
+int WIDTH = 256;
+int HEIGHT = 150;
 
 int thread_width = WIDTH / column_threads;
-int thread_height = HEIGHT/ row_threads;
+int thread_height = HEIGHT / row_threads;
+
+const int thread_count = column_threads * row_threads;
+std::vector<std::thread> draw_threads;
+bool finish_drawing[thread_count];
+int draw_from_x[thread_count];
+int draw_to_x[thread_count];
+int draw_from_y[thread_count];
+int draw_to_y[thread_count];
+int finish_thread_count = 0;
 
 bool running = true;
 int stationary_frames_count = 0;
@@ -29,7 +38,6 @@ std::string selecting_object_type;
 bool keyhold[12];
 
 int render_frame_count = 3;
-float blur_rate = 0.01f;
 
 int mouse_pos_x;
 int mouse_pos_y;
@@ -41,11 +49,7 @@ bool lazy_ray_trace = false;
 
 SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
 
-std::vector<HitInfo> h_height(MAX_HEIGHT);
-std::vector<std::vector<HitInfo>> first_ray_hitinfo(MAX_WIDTH, h_height);
-
 std::vector<std::vector<Vec3>> screen_color = v_screen;
-std::vector<std::vector<Vec3>> first_ray_direction = v_screen;
 
 Camera camera;
 
@@ -63,7 +67,7 @@ Vec3 get_environment_light(Vec3 dir) {
 // get closest hit of a ray
 HitInfo ray_collision(Ray ray) {
     HitInfo closest_hit_sphere;
-    closest_hit_sphere.distance = 1e6;
+    closest_hit_sphere.distance = 1e8; // very far away
     // find the first intersect point in all sphere
     for(int i = 0; i < object_container.sphere_array_length; i++) {
         if(!object_container.spheres_available[i]) continue;
@@ -97,40 +101,14 @@ HitInfo ray_collision(Ray ray) {
 
     return closest_hit;
 }
-
-
-// if the camera is stationary and ray is not randomly offsetted (blur rate is 0.0f)
-// then HitInfo of the first ray from the camera is always the same
-// this function store that HitInfo into an array to help boost the performance (a lot)
-// this should be called after the camera is moved or rotated
-// automatically called before main loop start when blur rate is 0.0f
-void optimize_ray_cast() {
-    // if blur is turned on then skip this
-    if(camera.blur_rate != 0.0f) return;
-
-    for(int x = 0; x < WIDTH; x++)
-        for(int y = 0; y < HEIGHT; y++) {
-            Ray ray = camera.ray(x, y);
-            HitInfo h = ray_collision(ray);
-            first_ray_hitinfo[x][y] = h;
-            first_ray_direction[x][y] = ray.direction;
-        }
-}
 Vec3 ray_trace(int x, int y) {
     Vec3 ray_color = WHITE;
     Vec3 incomming_light = BLACK;
     float current_refractive_index = RI_AIR;
-    Ray ray;
-
-    if(camera.blur_rate != 0.0f) ray = camera.ray(x, y);
+    Ray ray = camera.ray(x, y);
 
     for(int i = 1; i <= camera.max_ray_bounce_count; i++) {
-        HitInfo h;
-        if(camera.blur_rate == 0.0f and i == 1) {
-            h = first_ray_hitinfo[x][y];
-            ray.direction = first_ray_direction[x][y];
-        }
-        else h = ray_collision(ray);
+        HitInfo h = ray_collision(ray);
 
         if(h.did_hit) {
             Vec3 old_direction = ray.direction;
@@ -146,7 +124,7 @@ Vec3 ray_trace(int x, int y) {
                 float ri_ratio = current_refractive_index / h.material.refractive_index;
 
                 float cos_theta = -ray.direction.dot(h.normal);
-                float sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+                float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
                 bool cannot_refract = ri_ratio * sin_theta > 1.0;
                 if(cannot_refract or reflectance(cos_theta, ri_ratio) > random_val())
@@ -162,7 +140,14 @@ Vec3 ray_trace(int x, int y) {
             
             Vec3 emitted_light = h.material.emission_color * h.material.emission_strength;
             incomming_light += emitted_light * ray_color;
-            ray_color = ray_color * h.material.color;
+            
+            Vec3 color = h.material.color;
+            if(h.material.texture.image_texture) {
+                if(h.material.texture.sphere_texture)
+                    color = h.material.texture.get_sphere_texture(h.normal);
+            }
+
+            ray_color = ray_color * color;
         }
         else {
             incomming_light += ray_color * get_environment_light(ray.direction);
@@ -171,48 +156,20 @@ Vec3 ray_trace(int x, int y) {
     }
     return incomming_light;
 }
-void drawing_rectangle_thread(int from_x, int to_x, int from_y, int to_y) {
-    for(int x = from_x; x <= to_x; x++)
-        for(int y = from_y; y <= to_y; y++) {
-            int skip_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
-            if(lazy_ray_trace and skip_condition % 2 == 0) continue;
-            Vec3 draw_color = BLACK;
-            // make more ray per pixel for more accurate color in one frame
-            // but decrease performance
-            for(int k = 1; k <= camera.ray_per_pixel; k++) {
-                draw_color += ray_trace(x, y);
-            }
-            draw_color /= camera.ray_per_pixel;
-
-            // progressive rendering
-            // make the color better over time without sacrifice performance
-            if(!camera_moving) {
-                float w = 1.0f / (stationary_frames_count + 1);
-                draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
-                screen_color[x][y] = draw_color;
-            }
-            else screen_color[x][y] = draw_color;
-
-            // draw pixel to buffer
-            Vec3 normalized = normalize_color(draw_color);
-            sdl.draw_pixel(x, y, normalized);
-        }
-}
 
 void draw_frame() {
     auto start = std::chrono::system_clock::now();
     sdl.enable_drawing();
-    std::vector<std::thread> threads;
-    for(int w = 0; w < column_threads; w++)
-        for(int h = 0; h < row_threads; h++) {
-            int from_x = w * thread_width;
-            int to_x = (w + 1) * thread_width - 1;
-            int from_y = h * thread_height;
-            int to_y = (h + 1) * thread_height - 1;
-            threads.push_back(std::thread(drawing_rectangle_thread, from_x, to_x, from_y, to_y));
-        }
+
+    // start all draw thread
+    finish_thread_count = 0;
+    for(int i = 0; i < thread_count; i++)
+        finish_drawing[i] = false;
     // wait till all threads are finished
-    for(auto& t: threads) t.join();
+    while(finish_thread_count < thread_count) {
+        // if not running then escape
+        if(!running) return;
+    }
 
     if(lazy_ray_trace) {
         for(int i = 0; i < (WIDTH >> 1) + (WIDTH % 2 == 1); i++)
@@ -240,52 +197,71 @@ void draw_frame() {
                 sdl.draw_pixel(x, y, normalized);
             }
     }
+
     sdl.disable_drawing();
     auto end = std::chrono::system_clock::now();
 
     std::chrono::duration<double> elapsed = end - start;
     delay = elapsed.count() * 1000;
     
-    stationary_frames_count += 1;
+    stationary_frames_count++;
 }
 
-void update_camera() {
-    float tilted_a = camera.tilted_angle;
-    float panned_a = camera.rotation.y;
-    camera.reset_rotation();
-    camera.WIDTH = WIDTH;
-    camera.HEIGHT = HEIGHT;
-    camera.rays_init();
+void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
+    for(int x = from_x; x <= to_x; x++)
+        for(int y = from_y; y <= to_y; y++) {
+            int skip_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
+            if(lazy_ray_trace and skip_condition % 2 == 0) continue;
 
-    camera.tilt(tilted_a);
-    camera.pan(panned_a);
+            Vec3 draw_color = BLACK;
+            // make more ray per pixel for more accurate color in one frame
+            // but decrease performance
+            for(int k = 1; k <= camera.ray_per_pixel; k++) {
+                draw_color += ray_trace(x, y);
+            }
+            draw_color /= camera.ray_per_pixel;
 
-    thread_width = WIDTH / column_threads;
-    thread_height = HEIGHT/ row_threads;
-    stationary_frames_count = 0;
+            // progressive rendering
+            // make the color better over time without sacrifice performance
+            if(!camera_moving) {
+                float w = 1.0f / (stationary_frames_count + 1);
+                draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
+                screen_color[x][y] = draw_color;
+            }
+            else screen_color[x][y] = draw_color;
 
-    draw_frame();
+            // draw pixel
+            Vec3 normalized = normalize_color(draw_color);
+            sdl.draw_pixel(x, y, normalized);
+        }
 }
-
-int main() {
-    camera.HEIGHT = HEIGHT;
-
-    camera.position.z = -10;
-    camera.FOV = 105;
-    camera.focal_length = 0.5f;
-    camera.max_range = 100;
-    camera.max_ray_bounce_count = 50;
-    camera.ray_per_pixel = 1;
-    sdl.set_camera_var(&camera);
-
-    camera.rays_init();
-    optimize_ray_cast();
-
+void draw_thread_function(int id) {
     while(running) {
-	    while(SDL_PollEvent(&(sdl.event))) {
+        if(finish_drawing[id] == false) {
+            drawing_in_rectangle(draw_from_x[id], draw_to_x[id], draw_from_y[id], draw_to_y[id]);
+            finish_drawing[id] = true;
+            finish_thread_count++;
+        }
+    }
+}
+void thread_init() {
+    for(int w = 0; w < column_threads; w++)
+        for(int h = 0; h < row_threads; h++) {
+            int id = h * column_threads + w;
+            draw_from_x[id] = w * thread_width;
+            draw_to_x[id] = (w + 1) * thread_width - 1;
+            draw_from_y[id] = h * thread_height;
+            draw_to_y[id] = (h + 1) * thread_height - 1;
+        }
+}
+
+void input_handler() {
+    while(running) {
+        while(SDL_PollEvent(&(sdl.event))) {
             SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
             sdl.process_gui_event();
             running = sdl.event.type != SDL_QUIT;
+            if(!running) break;
 
             if(sdl.event.type == SDL_MOUSEBUTTONDOWN and !sdl.is_hover_over_gui()) {
                 // convert to viewport position
@@ -298,7 +274,7 @@ int main() {
                 if(hit.did_hit) {
                     selecting_object = hit.object_id;
                     selecting_object_type = const_cast<char*>(hit.object_type.c_str());
-                    }
+                }
                 else selecting_object = -1;
             }
 
@@ -342,8 +318,73 @@ int main() {
                     break;
             }
         }
+    }
+}
+
+void update_camera() {
+    float tilted_a = camera.tilted_angle;
+    float panned_a = camera.rotation.y;
+    camera.reset_rotation();
+    camera.WIDTH = WIDTH;
+    camera.HEIGHT = HEIGHT;
+    camera.rays_init();
+
+    camera.tilt(tilted_a);
+    camera.pan(panned_a);
+
+    thread_width = WIDTH / column_threads;
+    thread_height = HEIGHT / row_threads;
+    stationary_frames_count = 0;
+    thread_init();
+}
+
+int main() {
+    // test sphere texture
+    Sphere earth;
+    earth.radius = 5;
+    earth.material.texture.load_image("texture/earth.jpg");
+    earth.material.texture.sphere_texture = true;
+    object_container.add_sphere(earth);
+
+    Sphere sun;
+    sun.radius = 30;
+    sun.centre.x = -50;
+    sun.material.texture.load_image("texture/sun.jpg");
+    sun.material.texture.sphere_texture = true;
+    object_container.add_sphere(sun);
+
+    Sphere moon;
+    moon.radius = 1;
+    moon.centre.x = 8;
+    moon.centre.y = 5;
+    moon.material.texture.load_image("texture/moon.jpg");
+    moon.material.texture.sphere_texture = true;
+    object_container.add_sphere(moon);
+
+    // camera setting
+    camera.position.z = -10;
+    camera.FOV = 105;
+    camera.focal_length = 0.5f;
+    camera.max_range = 100;
+    camera.max_ray_bounce_count = 50;
+    camera.ray_per_pixel = 1;
+
+    camera.rays_init();
+
+    // start drawing thread at the beginning
+    for(int i = 0; i < thread_count; i++) {
+        finish_drawing[i] = true;
+        draw_threads.push_back(std::thread(draw_thread_function, i));
+    }
+    thread_init();
+
+    // start input thread
+    std::thread input_thread(input_handler);
+
+    while(running) {
+        // handling keyboard signal
         float speed = 0.5f;
-        float rot_speed = 0.1f;
+        float rot_speed = 0.05f;
         if(keyhold[10]) {
             speed *= 2;
         }
@@ -366,22 +407,39 @@ int main() {
         camera_moving = camera_changed;
 
         if(camera_moving) stationary_frames_count = 0;
-        if(stationary_frames_count == 3)
-            camera.blur_rate = blur_rate;
-        else if(stationary_frames_count == 0) {
-            camera.blur_rate = 0.0f;
-            optimize_ray_cast();
-        }
 
-        sdl.gui(&lazy_ray_trace, &render_frame_count, &blur_rate, &camera_moving, &stationary_frames_count, delay, &WIDTH, &HEIGHT, &object_container, &camera, update_camera, &up_sky_color, &down_sky_color, &selecting_object, &selecting_object_type, &running);
+        float old_FOV = camera.FOV;
+        float old_focal_length = camera.focal_length;
+        float old_max_range = camera.max_range;
+        float old_blur_rate = camera.blur_rate;
 
-        if(camera.WIDTH != WIDTH or camera.HEIGHT != HEIGHT)
+        sdl.gui(&lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay,
+                &WIDTH, &HEIGHT,
+                &object_container, &camera,
+                &up_sky_color, &down_sky_color,
+                &selecting_object, &selecting_object_type,
+                &running);
+
+        if(old_FOV != camera.FOV
+                or old_focal_length != camera.focal_length
+                or old_max_range != camera.max_range
+                or old_blur_rate != camera.blur_rate
+                or camera.WIDTH != WIDTH
+                or camera.HEIGHT != HEIGHT)
             update_camera();
 
-        if(stationary_frames_count <= render_frame_count) draw_frame();
+        if(stationary_frames_count <= render_frame_count)
+            draw_frame();
 
         sdl.render();
     }
+
+    // wait for all additional thread to finished
+    input_thread.join();
+    for(int i = 0; i < thread_count; i++)
+        draw_threads[i].join();
+
     sdl.destroy();
+
     return 0;
 }

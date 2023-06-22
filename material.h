@@ -1,6 +1,7 @@
 #pragma once
 #include "vec3.h"
 #include "constant.h"
+#include "texture.h"
 
 struct Material {
     Vec3 color = WHITE;
@@ -12,4 +13,6 @@ struct Material {
 
     bool transparent = false;
     float refractive_index = RI_GLASS;
+
+    Texture texture;
 };
