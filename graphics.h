@@ -2,7 +2,6 @@
 #include <SDL2/SDL.h>
 #include "vec3.h"
 #include "constant.h"
-#include "helper.h"
 #include "objects.h"
 #include "camera.h"
 #include "transformation.h"
@@ -173,11 +172,15 @@ public:
 
         if(ImGui::CollapsingHeader("camera")) {
             ImGui::SliderFloat("FOV", &(camera->FOV), 0, 180);
-            ImGui::InputFloat("focal length", &(camera->focal_length), 0.1f);
-            ImGui::InputFloat("max range", &(camera->max_range), 0.1f);
-            ImGui::InputFloat("blur rate", &(camera->blur_rate), 0.001f, 0.1f);
+            ImGui::DragFloat("focal length", &(camera->focal_length), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("max range", &(camera->max_range), 1, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("blur rate", &(camera->blur_rate), 0.001f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::InputInt("max ray bounce", &(camera->max_ray_bounce_count), 1);
+            if(camera->max_ray_bounce_count < 0)
+                camera->max_ray_bounce_count = 0;
             ImGui::InputInt("ray per pixel", &(camera->ray_per_pixel), 1);
+            if(camera->ray_per_pixel < 0)
+                camera->ray_per_pixel = 0;
         }
 
         ImGui::Begin("object property");
@@ -221,18 +224,26 @@ public:
             if(prev_object_id != *selecting_object or prev_object_type != *selecting_object_type) {
                 if(*selecting_object_type == "sphere") {
                     Vec3 centre = oc->spheres[*selecting_object].centre;
+                    Material mat = oc->spheres[*selecting_object].material;
+
                     position[0] = centre.x;
                     position[1] = centre.y;
                     position[2] = centre.z;
+
+                    rotation[0] = rad2deg(mat.texture.texture_rotation.x);
+                    rotation[1] = rad2deg(mat.texture.texture_rotation.y);
+                    rotation[2] = rad2deg(mat.texture.texture_rotation.z);
+
                     radius = oc->spheres[*selecting_object].radius;
-                    Material mat = oc->spheres[*selecting_object].material;
                     color[0] = mat.color.x;
                     color[1] = mat.color.y;
                     color[2] = mat.color.z;
+
                     emission_color[0] = mat.emission_color.x;
                     emission_color[1] = mat.emission_color.y;
                     emission_color[2] = mat.emission_color.z;
                     emission_strength = mat.emission_strength;
+
                     roughness = mat.roughness;
                     transparent = mat.transparent;
                     refractive_index = mat.refractive_index;
@@ -258,10 +269,12 @@ public:
                     color[0] = mat.color.x;
                     color[1] = mat.color.y;
                     color[2] = mat.color.z;
+
                     emission_color[0] = mat.emission_color.x;
                     emission_color[1] = mat.emission_color.y;
                     emission_color[2] = mat.emission_color.z;
                     emission_strength = mat.emission_strength;
+
                     roughness = mat.roughness;
                     transparent = mat.transparent;
                     refractive_index = mat.refractive_index;
@@ -271,20 +284,19 @@ public:
             prev_object_type = *selecting_object_type;
 
             ImGui::Text("transform");
+            ImGui::DragFloat3("position", position, 1.0f);
+            ImGui::DragFloat3("rotation", rotation, 1.0f);
             if(*selecting_object_type == "sphere") {
-                ImGui::InputFloat3("position", position);
-                ImGui::InputFloat("radius", &radius, 0.5f);
+                ImGui::DragFloat("radius", &radius, 0.5f);
             }
             else {
-                ImGui::InputFloat3("position", position);
-                ImGui::InputFloat3("rotation", rotation);
-                ImGui::InputFloat3("scaling", scale);
+                ImGui::DragFloat3("scaling", scale, 0.1f);
                 ImGui::Checkbox("uniform scaling", &uniform_scaling);
             }
             ImGui::Text("material");
             ImGui::ColorEdit3("color", color);
             ImGui::ColorEdit3("emission color", emission_color);
-            ImGui::InputFloat("emission_strength", &emission_strength, 0.1f);
+            ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::SliderFloat("roughness", &roughness, 0, 1);
             ImGui::Checkbox("transparent", &transparent);
             if(transparent) {
@@ -355,7 +367,8 @@ public:
                                       or mat->emission_strength != emission_strength
                                       or mat->roughness != roughness
                                       or mat->transparent != transparent
-                                      or mat->refractive_index != refractive_index;
+                                      or mat->refractive_index != refractive_index
+                                      or mat->texture.texture_rotation != new_rot;
                 if(object_changed) {
                     sphere->centre = new_pos;
                     sphere->radius = radius;
@@ -365,6 +378,7 @@ public:
                     mat->roughness = roughness;
                     mat->transparent = transparent;
                     mat->refractive_index = refractive_index;
+                    mat->texture.texture_rotation = new_rot;
                     *frame_num = 0;
                 }
             }

@@ -1,6 +1,5 @@
 #pragma once
 #include <random>
-#include <math.h>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -13,21 +12,13 @@ inline char* CHAR(std::string str) {
     return chr;
 }
 inline float deg2rad(float a) {
-    return a / 180 * pi;
+    return a / 180 * M_PI;
 }
 inline float rad2deg(float a) {
-    return a / pi * 180;
-}
-inline float max(float a, float b) {
-    if(a > b) return a;
-    return b;
-}
-inline float min(float a, float b) {
-    if(a < b) return a;
-    return b;
+    return a / M_PI * 180;
 }
 inline Vec3 normalize_color(Vec3 v) {
-    float MAX = max(v.x, max(v.y, v.z));
+    float MAX = fmax(v.x, fmax(v.y, v.z));
     if(MAX <= 1.0f) return v;
     return v / MAX;
 }

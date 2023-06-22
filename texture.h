@@ -1,6 +1,7 @@
 #pragma once
 #include "vec3.h"
 #include "constant.h"
+#include "transformation.h"
 #include <SDL2/SDL_image.h>
 
 #include <iostream>
@@ -10,6 +11,8 @@ class Texture {
 public:
     bool image_texture = false;
     bool sphere_texture = false;
+    
+    Vec3 texture_rotation = VEC3_ZERO; // for sphere only
 
     // load image using SDL_image since CImg give me weird result
     void load_image(const char* chr) {
@@ -17,10 +20,11 @@ public:
         image = IMG_Load(chr);
     }
     Vec3 get_sphere_texture(Vec3 p) {
+        p = _rotate(p, texture_rotation);
         float theta = acos(p.y);
-        float phi = atan2(p.z, p.x) + pi;
-        float u = phi / (2*pi);
-        float v = theta / pi;
+        float phi = atan2(p.z, p.x) + M_PI;
+        float u = phi / (2 * M_PI);
+        float v = theta / M_PI;
         int x = u * (image->w - 1);
         int y = v * (image->h - 1);
 

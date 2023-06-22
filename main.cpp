@@ -9,7 +9,6 @@
 #include "constant.h"
 #include "graphics.h"
 #include "objects.h"
-#include "transformation.h"
 
 // #include "nlohmann/json.hpp"
 // using json = nlohmann::json;
@@ -67,7 +66,7 @@ Vec3 get_environment_light(Vec3 dir) {
 // get closest hit of a ray
 HitInfo ray_collision(Ray ray) {
     HitInfo closest_hit_sphere;
-    closest_hit_sphere.distance = 1e8; // very far away
+    closest_hit_sphere.distance = INFINITY;
     // find the first intersect point in all sphere
     for(int i = 0; i < object_container.sphere_array_length; i++) {
         if(!object_container.spheres_available[i]) continue;

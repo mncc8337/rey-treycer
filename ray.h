@@ -85,8 +85,8 @@ struct Ray {
 		Vec3 tMax = (box_max - origin) * invDir;
 		Vec3 t1 = Vec3(fmin(tMin.x, tMax.x), fmin(tMin.y,tMax.y), fmin(tMin.z, tMax.z));
 		Vec3 t2 = Vec3(fmax(tMin.x, tMax.x), fmax(tMin.y,tMax.y), fmax(tMin.z, tMax.z));
-		float tNear = max(max(t1.x, t1.y), t1.z);
-		float tFar = min(min(t2.x, t2.y), t2.z);
+		float tNear = fmax(fmax(t1.x, t1.y), t1.z);
+		float tFar = fmin(fmin(t2.x, t2.y), t2.z);
 		return tNear <= tFar;
 	}
     HitInfo cast_to(Mesh mesh) {

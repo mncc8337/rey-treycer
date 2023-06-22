@@ -1,7 +1,6 @@
 #pragma once
 #include "vec3.h"
 #include "objects.h"
-#include "helper.h"
 #include "transformation.h"
 #include "ray.h"
 #include "constant.h"
@@ -124,7 +123,7 @@ public:
         }
         // default looking dir
         Vec3 dir = {0, 0, 1};
-        dir = -_rotate_y(dir, rotation.y + pi/2);
+        dir = -_rotate_y(dir, rotation.y + M_PI/2);
         for(int x = 0; x < WIDTH; x++)
             for(int y = 0; y < HEIGHT; y++)
                 focal_plane_in_world[x][y] = _rotate_on_axis(focal_plane_in_world[x][y], dir, a);
