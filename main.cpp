@@ -92,7 +92,7 @@ HitInfo ray_collision(Ray ray) {
         HitInfo h = ray.cast_to(mesh);
         if(h.did_hit and h.distance < closest_hit_mesh.distance) {
             closest_hit_mesh = h;
-            closest_hit_mesh.object_type = TYPE_SPHERE;
+            closest_hit_mesh.object_type = TYPE_MESH;
             closest_hit_mesh.object_id = i;
         }
     }

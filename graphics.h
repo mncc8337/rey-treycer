@@ -344,7 +344,7 @@ public:
             prev_object_type = *selecting_object_type;
 
             ImGui::Text("transform");
-            ImGui::DragFloat3("position", position, 1.0f);
+            ImGui::DragFloat3("position", position, 0.1f);
             ImGui::DragFloat3("rotation", rotation, 1.0f);
             if(*selecting_object_type == TYPE_SPHERE) {
                 ImGui::DragFloat("radius", &radius, 0.5f);

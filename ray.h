@@ -103,6 +103,7 @@ struct Ray {
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }
+        closest.object_type = TYPE_MESH;
         return closest;
     }
 };
