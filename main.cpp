@@ -32,14 +32,15 @@ bool running = true;
 int stationary_frames_count = 0;
 bool camera_moving = false;
 double delay = 0;
-int selecting_object = -1;
-std::string selecting_object_type;
 bool keyhold[12];
 
 int render_frame_count = 3;
 
 int mouse_pos_x;
 int mouse_pos_y;
+
+int selecting_object = -1;
+int selecting_object_type;
 
 float gamma_correction = 1.0f;
 
@@ -77,7 +78,7 @@ HitInfo ray_collision(Ray ray) {
         HitInfo h = ray.cast_to(sphere);
         if(h.did_hit and h.distance < closest_hit_sphere.distance) {
             closest_hit_sphere = h;
-            closest_hit_sphere.object_type = "sphere";
+            closest_hit_sphere.object_type = TYPE_SPHERE;
             closest_hit_sphere.object_id = i;
         }
     }
@@ -91,7 +92,7 @@ HitInfo ray_collision(Ray ray) {
         HitInfo h = ray.cast_to(mesh);
         if(h.did_hit and h.distance < closest_hit_mesh.distance) {
             closest_hit_mesh = h;
-            closest_hit_mesh.object_type = "mesh";
+            closest_hit_mesh.object_type = TYPE_SPHERE;
             closest_hit_mesh.object_id = i;
         }
     }
@@ -252,11 +253,11 @@ void thread_init() {
 
 void update_camera() {
     float tilted_a = camera.tilted_angle;
-    float panned_a = camera.rotation.y;
+    float panned_a = camera.panned_angle;
     camera.reset_rotation();
     camera.WIDTH = WIDTH;
     camera.HEIGHT = HEIGHT;
-    camera.rays_init();
+    camera.init();
 
     camera.tilt(tilted_a);
     camera.pan(panned_a);
@@ -303,7 +304,7 @@ int main() {
     camera.max_ray_bounce_count = 50;
     camera.ray_per_pixel = 1;
 
-    camera.rays_init();
+    camera.init();
 
     // start drawing thread at the beginning
     for(int i = 0; i < thread_count; i++) {
@@ -329,7 +330,7 @@ int main() {
                 HitInfo hit = ray_collision(camera.ray(mouse_pos_x, mouse_pos_y));
                 if(hit.did_hit) {
                     selecting_object = hit.object_id;
-                    selecting_object_type = const_cast<char*>(hit.object_type.c_str());
+                    selecting_object_type = hit.object_type;
                 }
                 else selecting_object = -1;
             }
@@ -406,12 +407,14 @@ int main() {
         float old_max_range = camera.max_range;
         float old_blur_rate = camera.blur_rate;
 
-        sdl.gui(&lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay,
-                &WIDTH, &HEIGHT,
-                &object_container, &camera, &gamma_correction,
-                &up_sky_color, &down_sky_color,
-                &selecting_object, &selecting_object_type,
-                &running);
+        sdl.gui(
+            &lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay,
+            &WIDTH, &HEIGHT,
+            &object_container, &selecting_object, &selecting_object_type,
+            &camera, &gamma_correction,
+            &up_sky_color, &down_sky_color,
+            &running
+        );
 
         if(old_FOV != camera.FOV
                 or old_focal_length != camera.focal_length

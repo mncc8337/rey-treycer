@@ -13,7 +13,7 @@ struct HitInfo {
     Vec3 normal = VEC3_ZERO;
     Material material;
     int object_id = -1;
-    std::string object_type = "sphere";
+    int object_type = TYPE_SPHERE;
 };
 struct Ray {
     bool hit_from_inside = false;
@@ -50,45 +50,46 @@ struct Ray {
                 h.material.refractive_index = RI_AIR;
             }
         }
-        h.object_type = CHAR("sphere");
+        h.object_type = TYPE_SPHERE;
         return h;
     }
     HitInfo cast_to(Triangle tri) {
         Vec3 edgeAB = tri.vert[1] - tri.vert[0];
-		Vec3 edgeAC = tri.vert[2] - tri.vert[0];
+        Vec3 edgeAC = tri.vert[2] - tri.vert[0];
 
+        //  reverse the triangle so that ray can hit from inside
         if(hit_from_inside) std::swap(edgeAB, edgeAC);
 
-		Vec3 normalVector = edgeAB.cross(edgeAC);
-		Vec3 ao = origin - tri.vert[0];
-		Vec3 dao = ao.cross(direction);
+        Vec3 normalVector = edgeAB.cross(edgeAC);
+        Vec3 ao = origin - tri.vert[0];
+        Vec3 dao = ao.cross(direction);
 
-		float determinant = -(direction.dot(normalVector));
-		float invDet = 1 / determinant;
+        float determinant = -(direction.dot(normalVector));
+        float invDet = 1 / determinant;
 
-		float dst = ao.dot(normalVector) * invDet;
-		float u = edgeAC.dot(dao) * invDet;
-		float v = -(edgeAB.dot(dao)) * invDet;
-		float w = 1 - u - v;
+        float dst = ao.dot(normalVector) * invDet;
+        float u = edgeAC.dot(dao) * invDet;
+        float v = -(edgeAB.dot(dao)) * invDet;
+        float w = 1 - u - v;
 
-		HitInfo h;
-		h.did_hit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
-		h.point = origin + direction * dst;
-		h.normal = normalVector.normalize();
-		h.distance = dst;
+        HitInfo h;
+        h.did_hit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
+        h.point = origin + direction * dst;
+        h.normal = normalVector.normalize();
+        h.distance = dst;
         h.material = tri.material;
-		return h;
+        return h;
     }
     bool cast_to_AABB(Vec3 box_min, Vec3 box_max) {
-		Vec3 invDir = 1 / direction;
-		Vec3 tMin = (box_min - origin) * invDir;
-		Vec3 tMax = (box_max - origin) * invDir;
-		Vec3 t1 = Vec3(fmin(tMin.x, tMax.x), fmin(tMin.y,tMax.y), fmin(tMin.z, tMax.z));
-		Vec3 t2 = Vec3(fmax(tMin.x, tMax.x), fmax(tMin.y,tMax.y), fmax(tMin.z, tMax.z));
-		float tNear = fmax(fmax(t1.x, t1.y), t1.z);
-		float tFar = fmin(fmin(t2.x, t2.y), t2.z);
-		return tNear <= tFar;
-	}
+        Vec3 invDir = 1 / direction;
+        Vec3 tMin = (box_min - origin) * invDir;
+        Vec3 tMax = (box_max - origin) * invDir;
+        Vec3 t1 = Vec3(fmin(tMin.x, tMax.x), fmin(tMin.y,tMax.y), fmin(tMin.z, tMax.z));
+        Vec3 t2 = Vec3(fmax(tMin.x, tMax.x), fmax(tMin.y,tMax.y), fmax(tMin.z, tMax.z));
+        float tNear = fmax(fmax(t1.x, t1.y), t1.z);
+        float tFar = fmin(fmin(t2.x, t2.y), t2.z);
+        return tNear <= tFar;
+    }
     HitInfo cast_to(Mesh mesh) {
         HitInfo closest;
         closest.did_hit = false;

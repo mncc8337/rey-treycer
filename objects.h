@@ -6,6 +6,11 @@
 #include "constant.h"
 #include "material.h"
 
+enum OBJECT_TYPES {
+    TYPE_SPHERE = 0,
+    TYPE_MESH = 1,
+};
+
 class Sphere {
 public:
     Vec3 centre = VEC3_ZERO;
@@ -17,7 +22,7 @@ public:
     Vec3 vert[3] = {VEC3_ZERO, VEC3_ZERO, VEC3_ZERO};
     Material material;
 };
-// a bunch of triangle is called mesh
+
 class Mesh {
 private:
     Vec3 position = VEC3_ZERO;
@@ -32,8 +37,8 @@ public:
     Vec3 AABB_max = VEC3_ZERO;
 
     void calculate_AABB() {
-        Vec3 min =  Vec3(999999,999999,999999);
-        Vec3 max = -Vec3(999999,999999,999999);
+        Vec3 min =  Vec3(INFINITY, INFINITY, INFINITY);
+        Vec3 max = -Vec3(INFINITY, INFINITY, INFINITY);
         for(auto tri: tris)
             for(int i = 0; i < 3; i++) {
                 min.x = fmin(min.x, tri.vert[i].x);

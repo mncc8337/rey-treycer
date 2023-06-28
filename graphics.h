@@ -25,7 +25,7 @@ private:
     ImGuiIO io;
 
     int prev_object_id = -1;
-    std::string prev_object_type;
+    int prev_object_type;
 
     // object transform property
     float position[3];
@@ -41,6 +41,7 @@ private:
     float roughness = 1;
     bool transparent = false;
     float refractive_index = 0;
+    const char* refractive_index_items[6] = {"air", "water", "glass", "flint glass", "diamond", "self-define"};
     int refractive_index_current_item = 1;
 
     // editor setting
@@ -118,15 +119,14 @@ public:
     void process_gui_event() {
         ImGui_ImplSDL2_ProcessEvent(&event);
     }
-    void gui(bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int* width, int* height, ObjectContainer* oc, Camera* camera, float* gamma_correction, Vec3* up_sky_c, Vec3* down_sky_c, int* selecting_object, std::string* selecting_object_type, bool* running) {
-        //GUI part
+    void gui(bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int* width, int* height, ObjectContainer* oc, int* selecting_object, int* selecting_object_type, Camera* camera, float* gamma_correction, Vec3* up_sky_c, Vec3* down_sky_c, bool* running) {
         ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
         
         if(ImGui::CollapsingHeader("Editor")) {
             std::string info = "done rendering";
-            if(*frame_num+1 < *frame_count)
+            if(*frame_num + 1 < *frame_count)
                 info = "rendering frame " + std::to_string(*frame_num + 1) + '/' + std::to_string(*frame_count);
 
             std::string delay_text = "last frame delay " + std::to_string(delay) + "ms";
@@ -134,16 +134,16 @@ public:
             ImGui::Text("%s", info.c_str());
             ImGui::Text("%s", delay_text.c_str());
 
-            ImGui::InputInt("viewport width", width, 2);
-            if(*width > 2000) *width = 2000;
-            if(*width <= 1) *width = 2;
+            ImGui::InputInt("viewport width", width, 1);
+            *width = fmin(*width, MAX_WIDTH);
+            *width = fmax(*width, 2);
 
-            ImGui::InputInt("viewport height", height, 2);
-            if(*height > 2000) *height = 2000;
-            if(*height <= 1) *height = 2;
+            ImGui::InputInt("viewport height", height, 1);
+            *height = fmin(*height, MAX_HEIGHT);
+            *height = fmax(*height, 2);
 
             ImGui::Checkbox("lazy ray tracing", lazy_ray_trace);
-            if (ImGui::IsItemHovered())
+            if(ImGui::IsItemHovered())
                 ImGui::SetTooltip("increase performance but decrease image quality");
 
             ImGui::Checkbox("show crosshair", &show_crosshair);
@@ -175,7 +175,7 @@ public:
                     for(int j = 0; j < 3; j++) {
                         Vec3* pos = &(focal_plane->tris[i].vert[j]);
                         *pos = _scale(*pos, {1e3, 0, 1e3});
-                        *pos = _rotate_y(*pos, camera->rotation.y); // panned angle
+                        *pos = _rotate_y(*pos, camera->panned_angle); // panned angle
                         *pos = _rotate_on_axis(*pos, rotating_axis, camera->tilted_angle + M_PI / 2); // tilted angle
                         *pos = *pos + new_pos;
                     }
@@ -203,7 +203,7 @@ public:
                 *down_sky_c = dkc;
 
             ImGui::InputInt("frame count", frame_count, 1);
-            if (ImGui::IsItemHovered())
+            if(ImGui::IsItemHovered())
                     ImGui::SetTooltip("number of frame will be rendered");
 
             if(ImGui::Button("render"))
@@ -211,6 +211,7 @@ public:
             ImGui::SameLine();
             if(ImGui::Button("stop render"))
                 *frame_num = *frame_count;
+
             if(ImGui::Button("fit window size with viewport size")) SDL_SetWindowSize(window, *width, *height);
             if(ImGui::Button("save image")) save_image();
             ImGui::SameLine();
@@ -229,11 +230,10 @@ public:
             ImGui::DragFloat("max range", &(camera->max_range), 1, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::DragFloat("blur rate", &(camera->blur_rate), 0.001f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::InputInt("max ray bounce", &(camera->max_ray_bounce_count), 1);
-            if(camera->max_ray_bounce_count < 0)
-                camera->max_ray_bounce_count = 0;
+            camera->max_ray_bounce_count = fmax(camera->max_ray_bounce_count, 1);
+
             ImGui::InputInt("ray per pixel", &(camera->ray_per_pixel), 1);
-            if(camera->ray_per_pixel < 0)
-                camera->ray_per_pixel = 0;
+            camera->ray_per_pixel = fmax(camera->ray_per_pixel, 1);
         }
 
         ImGui::Begin("object property");
@@ -243,42 +243,46 @@ public:
                 Sphere sphere;
                 id = oc->add_sphere(sphere);
                 *selecting_object = id;
-                *selecting_object_type = "sphere";
+                *selecting_object_type = TYPE_SPHERE;
             }
             ImGui::SameLine();
             if(ImGui::Button("add plane")) {
                 Mesh mesh = load_mesh_from("default_model/plane.obj");
                 id = oc->add_mesh(mesh);
                 *selecting_object = id;
-                *selecting_object_type = "mesh";
+                *selecting_object_type = TYPE_MESH;
             }
             ImGui::SameLine();
             if(ImGui::Button("add cube")) {
                 Mesh mesh = load_mesh_from("default_model/cube.obj");
                 id = oc->add_mesh(mesh);
                 *selecting_object = id;
-                *selecting_object_type = "mesh";
+                *selecting_object_type = TYPE_MESH;
             }
             ImGui::SameLine();
             if(ImGui::Button("add dodecahedron")) {
                 Mesh mesh = load_mesh_from("default_model/dodecahedron.obj");
                 id = oc->add_mesh(mesh);
                 *selecting_object = id;
-                *selecting_object_type = "mesh";
+                *selecting_object_type = TYPE_MESH;
             }
             if(id != -1)
                 *frame_num = 0;
         }
-        else if(*selecting_object == focal_plane_id and *selecting_object_type == "mesh") {
+        else if(*selecting_object == focal_plane_id and *selecting_object_type == TYPE_MESH) {
             ImGui::Text("selecting focal plane");
         }
         else {
-            const char* typ = selecting_object_type->c_str();
+            const char* typ;
+            if(*selecting_object_type == TYPE_SPHERE)
+                typ = std::string("sphere").c_str();
+            else
+                typ = std::string("mesh").c_str();
             ImGui::Text("selecting %s %d", typ, *selecting_object);
 
             // if select a new object
             if(prev_object_id != *selecting_object or prev_object_type != *selecting_object_type) {
-                if(*selecting_object_type == "sphere") {
+                if(*selecting_object_type == TYPE_SPHERE) {
                     Vec3 centre = oc->spheres[*selecting_object].centre;
                     Material mat = oc->spheres[*selecting_object].material;
 
@@ -342,7 +346,7 @@ public:
             ImGui::Text("transform");
             ImGui::DragFloat3("position", position, 1.0f);
             ImGui::DragFloat3("rotation", rotation, 1.0f);
-            if(*selecting_object_type == "sphere") {
+            if(*selecting_object_type == TYPE_SPHERE) {
                 ImGui::DragFloat("radius", &radius, 0.5f);
             }
             else {
@@ -356,8 +360,7 @@ public:
             ImGui::SliderFloat("roughness", &roughness, 0, 1);
             ImGui::Checkbox("transparent", &transparent);
             if(transparent) {
-                const char* items[] = {"air", "water", "glass", "flint glass", "diamond", "self-define"};
-                ImGui::Combo("refractive index", &refractive_index_current_item, items, IM_ARRAYSIZE(items));
+                ImGui::Combo("refractive index", &refractive_index_current_item, refractive_index_items, 6);
                 switch(refractive_index_current_item) {
                     case 0:
                         refractive_index = RI_AIR;
@@ -413,7 +416,7 @@ public:
             Vec3 new_color = Vec3(color[0], color[1], color[2]);
             Vec3 new_emission_color = Vec3(emission_color[0], emission_color[1], emission_color[2]);
 
-            if(*selecting_object_type == "sphere") {
+            if(*selecting_object_type == TYPE_SPHERE) {
                 Sphere* sphere = &(oc->spheres[*selecting_object]);
                 Material* mat = &(sphere->material);
                 bool object_changed = sphere->centre != new_pos
@@ -466,7 +469,7 @@ public:
                 }
             }
             if(ImGui::Button("delete object")) {
-                if(*selecting_object_type == "sphere")
+                if(*selecting_object_type == TYPE_SPHERE)
                     oc->remove_sphere(*selecting_object);
                 else
                     oc->remove_mesh(*selecting_object);
@@ -494,17 +497,15 @@ public:
         SDL_UnlockTexture(texture);
     }
     void load_texture() {
-        // load texture to renderer
+        // scale the texture to fit the window
         SDL_Rect rect;
         rect.x = 0; rect.y = 0;
-        int w; int h;
-        SDL_GetWindowSize(window, &w, &h);
-        // scale the texture to fit the window
-        rect.w = w; rect.h = h;
+        SDL_GetWindowSize(window, &(rect.w), &(rect.h));
+        // load texture to renderer
         SDL_RenderCopy(renderer, texture, NULL, &rect);
     }
     void draw_crosshair() {
-        int w; int h;
+        int w, h;
         SDL_GetWindowSize(window, &w, &h);
         int middle_x = w >> 1;
         int middle_y = h >> 1;
