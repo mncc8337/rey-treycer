@@ -38,10 +38,8 @@ public:
     Ray ray(int x, int y) {
         // make the frame blur for anti aliasing by offsetting ray origin
         Vec3 rd = VEC3_ZERO;
-        if(blur_rate != 0.0f) {
+        if(blur_rate != 0.0f)
             rd = random_direction().normalize() * blur_rate;
-            rd *= random_val();
-        }
 
         Vec3 endpoint = position + pixel_in_world[x][y];
 
