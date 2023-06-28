@@ -119,7 +119,7 @@ Vec3 ray_trace(int x, int y) {
             Vec3 specular_direction = reflection(h.normal, old_direction);
 
             if(!h.material.transparent)
-                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness).normalize();
+                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
             // use refraction ray instead
             else {
                 Vec3 refraction_direction(0, 0, 0);
