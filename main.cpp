@@ -41,6 +41,8 @@ int render_frame_count = 3;
 int mouse_pos_x;
 int mouse_pos_y;
 
+float gamma_correction = 1.0f;
+
 // ray trace pixel like a checker board
 // the other pixel color is the average color of neighbor pixel
 // reduce render time by half but also reduce image quality
@@ -81,7 +83,7 @@ HitInfo ray_collision(Ray ray) {
     }
 
     HitInfo closest_hit_mesh;
-    closest_hit_mesh.distance = 1e6;
+    closest_hit_mesh.distance = INFINITY;
     for(int i = 0; i < object_container.mesh_array_length; i++) {
         if(!object_container.meshes_available[i]) continue;
         Mesh mesh = object_container.meshes[i];
@@ -170,33 +172,6 @@ void draw_frame() {
         if(!running) return;
     }
 
-    if(lazy_ray_trace) {
-        for(int i = 0; i < (WIDTH >> 1) + (WIDTH % 2 == 1); i++)
-            for(int y = 0; y < HEIGHT; y++) {
-                int x = i * 2;
-                if(y % 2 == 1) x += 1;
-
-                Vec3 c = BLACK;
-                // calculate number of neighbor
-                bool u, d, l, r;
-                u = y > 0;
-                d = y < HEIGHT - 1;
-                l = x > 0;
-                r = x < WIDTH - 1;
-                int neighbor_count = u + d + l + r;
-
-                if(u) c += screen_color[x][y-1];
-                if(d) c += screen_color[x][y+1];
-                if(l) c += screen_color[x-1][y];
-                if(r) c += screen_color[x+1][y];
-                c /= neighbor_count;
-
-                screen_color[x][y] = c;
-                Vec3 normalized = normalize_color(c);
-                sdl.draw_pixel(x, y, normalized);
-            }
-    }
-
     sdl.disable_drawing();
     auto end = std::chrono::system_clock::now();
 
@@ -209,16 +184,34 @@ void draw_frame() {
 void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
     for(int x = from_x; x <= to_x; x++)
         for(int y = from_y; y <= to_y; y++) {
-            int skip_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
-            if(lazy_ray_trace and skip_condition % 2 == 0) continue;
-
             Vec3 draw_color = BLACK;
-            // make more ray per pixel for more accurate color in one frame
-            // but decrease performance
-            for(int k = 1; k <= camera.ray_per_pixel; k++) {
-                draw_color += ray_trace(x, y);
+
+            int skip_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
+            // lazy ray trace
+            // do not run if frame count is 0
+            if(lazy_ray_trace and skip_condition % 2 == 0 and stationary_frames_count > 0) {
+                // calculate number of neighbor
+                bool u, d, l, r;
+                u = y > 0;
+                d = y < HEIGHT - 1;
+                l = x > 0;
+                r = x < WIDTH - 1;
+                int neighbor_count = u + d + l + r;
+
+                if(u) draw_color += screen_color[x][y-1];
+                if(d) draw_color += screen_color[x][y+1];
+                if(l) draw_color += screen_color[x-1][y];
+                if(r) draw_color += screen_color[x+1][y];
+                draw_color /= neighbor_count;
             }
-            draw_color /= camera.ray_per_pixel;
+            else {
+                // make more ray per pixel for more accurate color in one frame
+                // but decrease performance
+                for(int k = 1; k <= camera.ray_per_pixel; k++) {
+                    draw_color += ray_trace(x, y);
+                }
+                draw_color /= camera.ray_per_pixel;
+            }
 
             // progressive rendering
             // make the color better over time without sacrifice performance
@@ -229,9 +222,12 @@ void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
             }
             else screen_color[x][y] = draw_color;
 
+            // post processing
+            Vec3 COLOR = tonemap(draw_color, RGB_CLAMPING);
+            COLOR = gamma_correct(COLOR, gamma_correction);
+
             // draw pixel
-            Vec3 normalized = normalize_color(draw_color);
-            sdl.draw_pixel(x, y, normalized);
+            sdl.draw_pixel(x, y, COLOR);
         }
 }
 void draw_thread_function(int id) {
@@ -254,7 +250,68 @@ void thread_init() {
         }
 }
 
-void input_handler() {
+void update_camera() {
+    float tilted_a = camera.tilted_angle;
+    float panned_a = camera.rotation.y;
+    camera.reset_rotation();
+    camera.WIDTH = WIDTH;
+    camera.HEIGHT = HEIGHT;
+    camera.rays_init();
+
+    camera.tilt(tilted_a);
+    camera.pan(panned_a);
+
+    // stop drawing
+    finish_thread_count = thread_count;
+    for(int i = 0; i < thread_count; i++)
+        finish_drawing[i] = true;
+
+    thread_width = WIDTH / column_threads;
+    thread_height = HEIGHT / row_threads;
+    stationary_frames_count = 0;
+    thread_init();
+}
+
+int main() {
+    // test sphere texture
+    Sphere earth;
+    earth.radius = 5;
+    earth.material.texture.load_image("texture/earth.jpg");
+    earth.material.texture.sphere_texture = true;
+    object_container.add_sphere(earth);
+
+    Sphere sun;
+    sun.radius = 30;
+    sun.centre.x = -50;
+    sun.material.texture.load_image("texture/sun.jpg");
+    sun.material.texture.sphere_texture = true;
+    object_container.add_sphere(sun);
+
+    Sphere moon;
+    moon.radius = 1;
+    moon.centre.x = 8;
+    moon.centre.y = 5;
+    moon.material.texture.load_image("texture/moon.jpg");
+    moon.material.texture.sphere_texture = true;
+    object_container.add_sphere(moon);
+
+    // camera setting
+    camera.position.z = -10;
+    camera.FOV = 105;
+    camera.focal_length = 10.0f;
+    camera.max_range = 100;
+    camera.max_ray_bounce_count = 50;
+    camera.ray_per_pixel = 1;
+
+    camera.rays_init();
+
+    // start drawing thread at the beginning
+    for(int i = 0; i < thread_count; i++) {
+        finish_drawing[i] = true;
+        draw_threads.push_back(std::thread(draw_thread_function, i));
+    }
+    thread_init();
+
     while(running) {
         while(SDL_PollEvent(&(sdl.event))) {
             SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
@@ -317,70 +374,7 @@ void input_handler() {
                     break;
             }
         }
-    }
-}
 
-void update_camera() {
-    float tilted_a = camera.tilted_angle;
-    float panned_a = camera.rotation.y;
-    camera.reset_rotation();
-    camera.WIDTH = WIDTH;
-    camera.HEIGHT = HEIGHT;
-    camera.rays_init();
-
-    camera.tilt(tilted_a);
-    camera.pan(panned_a);
-
-    thread_width = WIDTH / column_threads;
-    thread_height = HEIGHT / row_threads;
-    stationary_frames_count = 0;
-    thread_init();
-}
-
-int main() {
-    // test sphere texture
-    Sphere earth;
-    earth.radius = 5;
-    earth.material.texture.load_image("texture/earth.jpg");
-    earth.material.texture.sphere_texture = true;
-    object_container.add_sphere(earth);
-
-    Sphere sun;
-    sun.radius = 30;
-    sun.centre.x = -50;
-    sun.material.texture.load_image("texture/sun.jpg");
-    sun.material.texture.sphere_texture = true;
-    object_container.add_sphere(sun);
-
-    Sphere moon;
-    moon.radius = 1;
-    moon.centre.x = 8;
-    moon.centre.y = 5;
-    moon.material.texture.load_image("texture/moon.jpg");
-    moon.material.texture.sphere_texture = true;
-    object_container.add_sphere(moon);
-
-    // camera setting
-    camera.position.z = -10;
-    camera.FOV = 105;
-    camera.focal_length = 0.5f;
-    camera.max_range = 100;
-    camera.max_ray_bounce_count = 50;
-    camera.ray_per_pixel = 1;
-
-    camera.rays_init();
-
-    // start drawing thread at the beginning
-    for(int i = 0; i < thread_count; i++) {
-        finish_drawing[i] = true;
-        draw_threads.push_back(std::thread(draw_thread_function, i));
-    }
-    thread_init();
-
-    // start input thread
-    std::thread input_thread(input_handler);
-
-    while(running) {
         // handling keyboard signal
         float speed = 0.5f;
         float rot_speed = 0.05f;
@@ -414,7 +408,7 @@ int main() {
 
         sdl.gui(&lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay,
                 &WIDTH, &HEIGHT,
-                &object_container, &camera,
+                &object_container, &camera, &gamma_correction,
                 &up_sky_color, &down_sky_color,
                 &selecting_object, &selecting_object_type,
                 &running);
@@ -434,7 +428,6 @@ int main() {
     }
 
     // wait for all additional thread to finished
-    input_thread.join();
     for(int i = 0; i < thread_count; i++)
         draw_threads[i].join();
 

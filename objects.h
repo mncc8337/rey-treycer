@@ -154,7 +154,7 @@ public:
 
     // the exact clone but for meshes
     int add_mesh(Mesh m) {
-        int index;
+        int index = -1;
         // add new mesh to the middle of the array
         if(!mesh_array_middle_empty_space.empty()) {
             index = mesh_array_middle_empty_space.back();

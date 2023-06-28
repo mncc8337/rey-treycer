@@ -21,11 +21,11 @@ public:
     int HEIGHT;
     
     float FOV = 105.0f; // degree
-    float focal_length = 0.67f;
+    float focal_length = 10.0f;
 
     int max_ray_bounce_count = 10;
     int ray_per_pixel = 1;
-    float blur_rate = 0.001f;
+    float blur_rate = 0.1f;
 
     float max_range = 50.0f;
 
@@ -132,13 +132,17 @@ public:
         rotate_y(a);
     }
     void move_foward(float ammount) {
-        Vec3 dir = Vec3(sin(rotation.y), sin(tilted_angle), cos(rotation.y));
+        Vec3 dir = get_looking_direction();
         dir *= ammount;
         position += dir;
     }
     void move_left(float ammount) {
-        Vec3 dir = Vec3(-cos(rotation.y), 0, sin(rotation.y));
+        Vec3 dir = get_looking_direction();
+        std::swap(dir.x, dir.z); dir.y = 0; dir.x *= -1;
         dir *= ammount;
         position += dir;
+    }
+    Vec3 get_looking_direction() {
+        return Vec3(sin(rotation.y), sin(tilted_angle), cos(rotation.y));
     }
 };

@@ -48,6 +48,10 @@ private:
     float up_sky_color[3] = {0.5, 0.7, 1.0};
     float down_sky_color[3] = {1.0, 1.0, 1.0};
 
+    int focal_plane_id = -5;
+    bool show_focal_plane = false;
+    bool focal_plane_spawned = false;
+
 public:
     SDL_Event event;
     SDL_Window *window;
@@ -114,7 +118,7 @@ public:
     void process_gui_event() {
         ImGui_ImplSDL2_ProcessEvent(&event);
     }
-    void gui(bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int* width, int* height, ObjectContainer* oc, Camera* camera, Vec3* up_sky_c, Vec3* down_sky_c, int* selecting_object, std::string* selecting_object_type, bool* running) {
+    void gui(bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int* width, int* height, ObjectContainer* oc, Camera* camera, float* gamma_correction, Vec3* up_sky_c, Vec3* down_sky_c, int* selecting_object, std::string* selecting_object_type, bool* running) {
         //GUI part
         ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame();
@@ -130,19 +134,63 @@ public:
             ImGui::Text("%s", info.c_str());
             ImGui::Text("%s", delay_text.c_str());
 
-            ImGui::InputInt("viewport width", width, 1);
+            ImGui::InputInt("viewport width", width, 2);
             if(*width > 2000) *width = 2000;
-            if(*width <= 0) *width = 1;
+            if(*width <= 1) *width = 2;
 
-            ImGui::InputInt("viewport height", height, 1);
+            ImGui::InputInt("viewport height", height, 2);
             if(*height > 2000) *height = 2000;
-            if(*height <= 0) *height = 1;
+            if(*height <= 1) *height = 2;
 
             ImGui::Checkbox("lazy ray tracing", lazy_ray_trace);
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("increase performance but decrease image quality");
 
             ImGui::Checkbox("show crosshair", &show_crosshair);
+
+            bool old_show_focal_plane = show_focal_plane;
+            ImGui::Checkbox("show focal plane", &show_focal_plane);
+            if(show_focal_plane) {
+                // add focal plane mesh if not have
+                if(!focal_plane_spawned) {
+                    focal_plane_id = oc->add_mesh(load_mesh_from("default_model/plane.obj"));
+                    focal_plane_spawned = true;
+                }
+                // "show" the focal plane
+                oc->meshes_available[focal_plane_id] = true;
+
+                Material mat;
+                mat.color = BLACK;
+                mat.emission_color = WHITE;
+                mat.emission_strength = 0.1f;
+
+                Mesh* focal_plane = &(oc->meshes[focal_plane_id]);
+                Vec3 look_dir = camera->get_looking_direction();
+                Vec3 new_pos = camera->position + look_dir * camera->focal_length;
+                // get perpendicular vector of camera looking dir
+                Vec3 rotating_axis = look_dir.cross({0, 1, 0}).normalize();
+
+                focal_plane->tris = focal_plane->default_tris;
+                for(int i = 0; i < (int)focal_plane->tris.size(); i++) {
+                    for(int j = 0; j < 3; j++) {
+                        Vec3* pos = &(focal_plane->tris[i].vert[j]);
+                        *pos = _scale(*pos, {1e3, 0, 1e3});
+                        *pos = _rotate_y(*pos, camera->rotation.y); // panned angle
+                        *pos = _rotate_on_axis(*pos, rotating_axis, camera->tilted_angle + M_PI / 2); // tilted angle
+                        *pos = *pos + new_pos;
+                    }
+                    focal_plane->tris[i].material = mat;
+                }
+                // calculate AABB for rendering
+                focal_plane->calculate_AABB();
+            }
+            else {
+                // "hide" the focal plane object
+                oc->meshes_available[focal_plane_id] = false;
+            }
+            // force render if clicked
+            if(old_show_focal_plane != show_focal_plane)
+                *frame_num = 0;
 
             ImGui::ColorEdit3("up sky color", up_sky_color);
             Vec3 ukc = Vec3(up_sky_color[0], up_sky_color[1], up_sky_color[2]);
@@ -171,6 +219,11 @@ public:
         }
 
         if(ImGui::CollapsingHeader("camera")) {
+            float old_gamma_correction = *gamma_correction;
+            ImGui::DragFloat("gamma correction", gamma_correction, 0.01f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            if(*gamma_correction != old_gamma_correction)
+                *frame_num = 0;
+
             ImGui::SliderFloat("FOV", &(camera->FOV), 0, 180);
             ImGui::DragFloat("focal length", &(camera->focal_length), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::DragFloat("max range", &(camera->max_range), 1, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
@@ -215,6 +268,9 @@ public:
             }
             if(id != -1)
                 *frame_num = 0;
+        }
+        else if(*selecting_object == focal_plane_id and *selecting_object_type == "mesh") {
+            ImGui::Text("selecting focal plane");
         }
         else {
             const char* typ = selecting_object_type->c_str();

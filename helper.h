@@ -17,10 +17,21 @@ inline float deg2rad(float a) {
 inline float rad2deg(float a) {
     return a / M_PI * 180;
 }
-inline Vec3 normalize_color(Vec3 v) {
-    float MAX = fmax(v.x, fmax(v.y, v.z));
-    if(MAX <= 1.0f) return v;
-    return v / MAX;
+
+enum TONEMAPPING {
+    RGB_CLAMPING = 0,
+};
+inline Vec3 tonemap(Vec3 v, int style) {
+    switch(style) {
+        case RGB_CLAMPING:
+            return Vec3(fmin(v.x, 1), fmin(v.y, 1), fmin(v.z, 1));
+        default:
+            return v;
+    }
+}
+inline Vec3 gamma_correct(Vec3 color, float t) {
+    // t need to in range [1, 2]
+    return Vec3(pow(color.x, t), pow(color.y, t), pow(color.z, t));
 }
 
 std::mt19937 RNG;
