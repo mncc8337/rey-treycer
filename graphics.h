@@ -220,10 +220,7 @@ public:
         }
 
         if(ImGui::CollapsingHeader("camera")) {
-            float old_gamma_correction = *gamma_correction;
             ImGui::DragFloat("gamma correction", gamma_correction, 0.01f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            if(*gamma_correction != old_gamma_correction)
-                *frame_num = 0;
 
             ImGui::SliderFloat("FOV", &(camera->FOV), 0, 180);
             ImGui::DragFloat("focal length", &(camera->focal_length), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);

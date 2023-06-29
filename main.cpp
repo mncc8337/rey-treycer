@@ -161,7 +161,6 @@ Vec3 ray_trace(int x, int y) {
 
 void draw_frame() {
     auto start = std::chrono::system_clock::now();
-    sdl.enable_drawing();
 
     // start all draw thread
     finish_thread_count = 0;
@@ -173,7 +172,6 @@ void draw_frame() {
         if(!running) return;
     }
 
-    sdl.disable_drawing();
     auto end = std::chrono::system_clock::now();
 
     std::chrono::duration<double> elapsed = end - start;
@@ -222,13 +220,6 @@ void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
                 screen_color[x][y] = draw_color;
             }
             else screen_color[x][y] = draw_color;
-
-            // post processing
-            Vec3 COLOR = tonemap(draw_color, RGB_CLAMPING);
-            COLOR = gamma_correct(COLOR, gamma_correction);
-
-            // draw pixel
-            sdl.draw_pixel(x, y, COLOR);
         }
 }
 void draw_thread_function(int id) {
@@ -262,17 +253,21 @@ void update_camera() {
     camera.tilt(tilted_a);
     camera.pan(panned_a);
 
-    // stop drawing
-    finish_thread_count = thread_count;
-    for(int i = 0; i < thread_count; i++)
-        finish_drawing[i] = true;
-
     thread_width = WIDTH / column_threads;
     thread_height = HEIGHT / row_threads;
-    stationary_frames_count = 0;
     thread_init();
+
+    stationary_frames_count = 0;
 }
 
+void draw_to_window() {
+    while(running) {
+        if(stationary_frames_count <= render_frame_count)
+            draw_frame();
+    }
+}
+
+float delta_time = 0;
 int main() {
     // test sphere texture
     Sphere earth;
@@ -313,7 +308,10 @@ int main() {
     }
     thread_init();
 
+    std::thread gui_thread(draw_to_window);
+
     while(running) {
+        auto start = std::chrono::system_clock::now();
         while(SDL_PollEvent(&(sdl.event))) {
             SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
             sdl.process_gui_event();
@@ -377,8 +375,8 @@ int main() {
         }
 
         // handling keyboard signal
-        float speed = 0.5f;
-        float rot_speed = 0.05f;
+        float speed = 5.0f * delta_time;
+        float rot_speed = 0.8f * delta_time;
         if(keyhold[10]) {
             speed *= 2;
         }
@@ -424,13 +422,30 @@ int main() {
                 or camera.HEIGHT != HEIGHT)
             update_camera();
 
-        if(stationary_frames_count <= render_frame_count)
-            draw_frame();
+        // copy all pixel to renderer
+        if(stationary_frames_count <= render_frame_count) {
+            sdl.enable_drawing();
+            for(int x = 0; x < WIDTH; x++)
+                for(int y = 0; y < HEIGHT; y++) {
+                    // post processing
+                    Vec3 COLOR = tonemap(screen_color[x][y], RGB_CLAMPING);
+                    COLOR = gamma_correct(COLOR, gamma_correction);
+
+                    sdl.draw_pixel(x, y, COLOR);
+                }
+            sdl.disable_drawing();
+        }
 
         sdl.render();
+
+        auto end = std::chrono::system_clock::now();
+
+        std::chrono::duration<double> elapsed = end - start;
+        delta_time = elapsed.count();
     }
 
     // wait for all additional thread to finished
+    gui_thread.join();
     for(int i = 0; i < thread_count; i++)
         draw_threads[i].join();
 
