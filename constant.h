@@ -28,4 +28,3 @@ const float RI_FLINT_GLASS = 1.66f;
 const float RI_DIAMOND = 2.4f;
 
 const std::vector<Vec3> v_height(MAX_HEIGHT, VEC3_ZERO);
-const std::vector<std::vector<Vec3>> v_screen(MAX_WIDTH, v_height);

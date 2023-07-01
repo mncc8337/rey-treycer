@@ -75,7 +75,7 @@ public:
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
 
-        screen_color = v_screen;
+        screen_color = std::vector<std::vector<Vec3>>(MAX_WIDTH, v_height);
 
         // setup imgui
         IMGUI_CHECKVERSION();

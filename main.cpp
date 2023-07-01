@@ -13,20 +13,11 @@
 // #include "nlohmann/json.hpp"
 // using json = nlohmann::json;
 
-int WIDTH = 256;
-int HEIGHT = 150;
+int WIDTH = 320;
+int HEIGHT = 180;
 
 int thread_width = WIDTH / column_threads;
 int thread_height = HEIGHT / row_threads;
-
-const int thread_count = column_threads * row_threads;
-std::vector<std::thread> draw_threads;
-bool finish_drawing[thread_count];
-int draw_from_x[thread_count];
-int draw_to_x[thread_count];
-int draw_from_y[thread_count];
-int draw_to_y[thread_count];
-int finish_thread_count = 0;
 
 bool running = true;
 int stationary_frames_count = 0;
@@ -51,7 +42,8 @@ bool lazy_ray_trace = false;
 
 SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
 
-std::vector<std::vector<Vec3>> screen_color = v_screen;
+std::vector<std::vector<Vec3>> screen_color(MAX_WIDTH, v_height);
+std::vector<std::vector<Vec3>> buffer = screen_color;
 
 Camera camera;
 
@@ -159,36 +151,28 @@ Vec3 ray_trace(int x, int y) {
     return incomming_light;
 }
 
-void draw_frame() {
-    auto start = std::chrono::system_clock::now();
+// copy all pixel to renderer
+void copy_pixel() {
+    sdl.enable_drawing();
+    for(int x = 0; x < WIDTH; x++)
+        for(int y = 0; y < HEIGHT; y++) {
+            // post processing
+            Vec3 COLOR = tonemap(screen_color[x][y], RGB_CLAMPING);
+            COLOR = gamma_correct(COLOR, gamma_correction);
 
-    // start all draw thread
-    finish_thread_count = 0;
-    for(int i = 0; i < thread_count; i++)
-        finish_drawing[i] = false;
-    // wait till all threads are finished
-    while(finish_thread_count < thread_count) {
-        // if not running then escape
-        if(!running) return;
-    }
-
-    auto end = std::chrono::system_clock::now();
-
-    std::chrono::duration<double> elapsed = end - start;
-    delay = elapsed.count() * 1000;
-    
-    stationary_frames_count++;
+            sdl.draw_pixel(x, y, COLOR);
+        }
+    sdl.disable_drawing();
 }
-
 void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
     for(int x = from_x; x <= to_x; x++)
         for(int y = from_y; y <= to_y; y++) {
             Vec3 draw_color = BLACK;
 
-            int skip_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
+            int lazy_ray_trace_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
             // lazy ray trace
             // do not run if frame count is 0
-            if(lazy_ray_trace and skip_condition % 2 == 0 and stationary_frames_count > 0) {
+            if(lazy_ray_trace and lazy_ray_trace_condition % 2 == 0 and stationary_frames_count > 0) {
                 // calculate number of neighbor
                 bool u, d, l, r;
                 u = y > 0;
@@ -213,33 +197,39 @@ void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
             }
 
             // progressive rendering
-            // make the color better over time without sacrifice performance
             if(!camera_moving) {
                 float w = 1.0f / (stationary_frames_count + 1);
                 draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
-                screen_color[x][y] = draw_color;
             }
-            else screen_color[x][y] = draw_color;
+            buffer[x][y] = draw_color;
         }
 }
-void draw_thread_function(int id) {
-    while(running) {
-        if(finish_drawing[id] == false) {
-            drawing_in_rectangle(draw_from_x[id], draw_to_x[id], draw_from_y[id], draw_to_y[id]);
-            finish_drawing[id] = true;
-            finish_thread_count++;
-        }
-    }
-}
-void thread_init() {
+void draw_frame() {
+    auto start = std::chrono::system_clock::now();
+
+    std::vector<std::thread> threads;
+    // start all draw thread
     for(int w = 0; w < column_threads; w++)
         for(int h = 0; h < row_threads; h++) {
-            int id = h * column_threads + w;
-            draw_from_x[id] = w * thread_width;
-            draw_to_x[id] = (w + 1) * thread_width - 1;
-            draw_from_y[id] = h * thread_height;
-            draw_to_y[id] = (h + 1) * thread_height - 1;
+            int draw_from_x = w * thread_width;
+            int draw_to_x = (w + 1) * thread_width - 1;
+            int draw_from_y = h * thread_height;
+            int draw_to_y = (h + 1) * thread_height - 1;
+            threads.push_back(std::thread(drawing_in_rectangle, draw_from_x, draw_to_x, draw_from_y, draw_to_y));
         }
+    // wait till all threads are finished
+    for(int i = 0; i < (int)threads.size(); i++)
+        threads[i].join();
+
+    // copy buffer to screen
+    screen_color = buffer;
+
+    auto end = std::chrono::system_clock::now();
+
+    std::chrono::duration<double> elapsed = end - start;
+    delay = elapsed.count() * 1000;
+    
+    stationary_frames_count++;
 }
 
 void update_camera() {
@@ -255,7 +245,6 @@ void update_camera() {
 
     thread_width = WIDTH / column_threads;
     thread_height = HEIGHT / row_threads;
-    thread_init();
 
     stationary_frames_count = 0;
 }
@@ -301,14 +290,7 @@ int main() {
 
     camera.init();
 
-    // start drawing thread at the beginning
-    for(int i = 0; i < thread_count; i++) {
-        finish_drawing[i] = true;
-        draw_threads.push_back(std::thread(draw_thread_function, i));
-    }
-    thread_init();
-
-    std::thread gui_thread(draw_to_window);
+    std::thread draw_thread(draw_to_window);
 
     while(running) {
         auto start = std::chrono::system_clock::now();
@@ -422,20 +404,8 @@ int main() {
                 or camera.HEIGHT != HEIGHT)
             update_camera();
 
-        // copy all pixel to renderer
-        if(stationary_frames_count <= render_frame_count) {
-            sdl.enable_drawing();
-            for(int x = 0; x < WIDTH; x++)
-                for(int y = 0; y < HEIGHT; y++) {
-                    // post processing
-                    Vec3 COLOR = tonemap(screen_color[x][y], RGB_CLAMPING);
-                    COLOR = gamma_correct(COLOR, gamma_correction);
-
-                    sdl.draw_pixel(x, y, COLOR);
-                }
-            sdl.disable_drawing();
-        }
-
+        bool still_drawing = stationary_frames_count <= render_frame_count;
+        if(still_drawing) copy_pixel();
         sdl.render();
 
         auto end = std::chrono::system_clock::now();
@@ -445,9 +415,7 @@ int main() {
     }
 
     // wait for all additional thread to finished
-    gui_thread.join();
-    for(int i = 0; i < thread_count; i++)
-        draw_threads[i].join();
+    draw_thread.join();
 
     sdl.destroy();
 

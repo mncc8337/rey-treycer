@@ -30,23 +30,24 @@ public:
 
 
     Camera() {
-        pixel_in_world = v_screen;
+        pixel_in_world = std::vector<std::vector<Vec3>>(MAX_WIDTH, v_height);
         pixel_in_world_BASE = pixel_in_world;
     }
 
     // create a ray for (x, y) pixel in screen
     Ray ray(int x, int y) {
-        // make the frame blur for anti aliasing by offsetting ray origin
+        // defocus effect by offsetting ray origin
         Vec3 rd = VEC3_ZERO;
         if(blur_rate != 0.0f)
-            rd = random_direction().normalize() * blur_rate;
+            rd = random_direction() * blur_rate;
 
+        Vec3 startpoint = position + rd;
         Vec3 endpoint = position + pixel_in_world[x][y];
 
-        Vec3 direction = (endpoint - (position + rd)).normalize();
+        Vec3 direction = (endpoint - startpoint).normalize();
         Ray new_ray;
         new_ray.direction = direction;
-        new_ray.origin = position + rd;
+        new_ray.origin = startpoint;
         new_ray.max_range = max_range;
 
         return new_ray;
