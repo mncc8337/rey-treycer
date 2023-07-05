@@ -18,6 +18,7 @@ int HEIGHT = 180;
 
 int thread_width = WIDTH / column_threads;
 int thread_height = HEIGHT / row_threads;
+std::vector<std::thread> threads;
 
 bool running = true;
 int stationary_frames_count = 0;
@@ -30,10 +31,7 @@ int render_frame_count = 3;
 int mouse_pos_x;
 int mouse_pos_y;
 
-int selecting_object = -1;
-int selecting_object_type;
-
-float gamma_correction = 1.0f;
+Object* selecting_object;
 
 // ray trace pixel like a checker board
 // the other pixel color is the average color of neighbor pixel
@@ -47,8 +45,11 @@ std::vector<std::vector<Vec3>> buffer = screen_color;
 
 Camera camera;
 
-// all object in the scene
-ObjectContainer object_container;
+// all object pointer in the scene
+std::vector<Object*> objects;
+bool sphere_request, mesh_request;
+std::string request_mesh_name;
+Mesh FOCAL_PLANE;
 
 Vec3 up_sky_color = Vec3(0.51f, 0.7f, 1.0f) * 1.0f;
 Vec3 down_sky_color = WHITE;
@@ -60,38 +61,23 @@ Vec3 get_environment_light(Vec3 dir) {
 
 // get closest hit of a ray
 HitInfo ray_collision(Ray ray) {
-    HitInfo closest_hit_sphere;
-    closest_hit_sphere.distance = INFINITY;
-    // find the first intersect point in all sphere
-    for(int i = 0; i < object_container.sphere_array_length; i++) {
-        if(!object_container.spheres_available[i]) continue;
-        Sphere sphere = object_container.spheres[i];
-
-        HitInfo h = ray.cast_to(sphere);
-        if(h.did_hit and h.distance < closest_hit_sphere.distance) {
-            closest_hit_sphere = h;
-            closest_hit_sphere.object_type = TYPE_SPHERE;
-            closest_hit_sphere.object_id = i;
-        }
-    }
-
-    HitInfo closest_hit_mesh;
-    closest_hit_mesh.distance = INFINITY;
-    for(int i = 0; i < object_container.mesh_array_length; i++) {
-        if(!object_container.meshes_available[i]) continue;
-        Mesh mesh = object_container.meshes[i];
-
-        HitInfo h = ray.cast_to(mesh);
-        if(h.did_hit and h.distance < closest_hit_mesh.distance) {
-            closest_hit_mesh = h;
-            closest_hit_mesh.object_type = TYPE_MESH;
-            closest_hit_mesh.object_id = i;
-        }
-    }
-
     HitInfo closest_hit;
-    if(closest_hit_mesh.distance < closest_hit_sphere.distance) closest_hit = closest_hit_mesh;
-    else closest_hit = closest_hit_sphere;
+    closest_hit.distance = INFINITY;
+    // find the first intersect point in all sphere
+    for(Object* obj: objects) {
+        if(!obj->visible) continue;
+
+        HitInfo h;
+        if(obj->is_sphere())
+            h = ray.cast_to_sphere(obj->get_position(), obj->get_radius(), obj->get_material());
+        else
+            h = ray.cast_to_mesh(obj->AABB_min, obj->AABB_max, obj->tris);
+
+        if(h.did_hit and h.distance < closest_hit.distance) {
+            closest_hit = h;
+            closest_hit.object = obj;
+        }
+    }
 
     return closest_hit;
 }
@@ -151,19 +137,6 @@ Vec3 ray_trace(int x, int y) {
     return incomming_light;
 }
 
-// copy all pixel to renderer
-void copy_pixel() {
-    sdl.enable_drawing();
-    for(int x = 0; x < WIDTH; x++)
-        for(int y = 0; y < HEIGHT; y++) {
-            // post processing
-            Vec3 COLOR = tonemap(screen_color[x][y], RGB_CLAMPING);
-            COLOR = gamma_correct(COLOR, gamma_correction);
-
-            sdl.draw_pixel(x, y, COLOR);
-        }
-    sdl.disable_drawing();
-}
 void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
     for(int x = from_x; x <= to_x; x++)
         for(int y = from_y; y <= to_y; y++) {
@@ -197,17 +170,14 @@ void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
             }
 
             // progressive rendering
-            if(!camera_moving) {
-                float w = 1.0f / (stationary_frames_count + 1);
-                draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
-            }
+            float w = 1.0f / (stationary_frames_count + 1);
+            draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
             buffer[x][y] = draw_color;
         }
 }
 void draw_frame() {
     auto start = std::chrono::system_clock::now();
 
-    std::vector<std::thread> threads;
     // start all draw thread
     for(int w = 0; w < column_threads; w++)
         for(int h = 0; h < row_threads; h++) {
@@ -220,6 +190,7 @@ void draw_frame() {
     // wait till all threads are finished
     for(int i = 0; i < (int)threads.size(); i++)
         threads[i].join();
+    threads.clear();
 
     // copy buffer to screen
     screen_color = buffer;
@@ -256,29 +227,89 @@ void draw_to_window() {
     }
 }
 
+// a small object mananager
+Sphere spheres[(int)1e5];
+int spheres_array_length = 0;
+std::vector<int> middle_space1;
+
+Mesh meshes[(int)1e5];
+int meshes_array_length = 0;
+std::vector<int> middle_space2;
+
+void add_sphere() {
+    Sphere sphere;
+    sphere.set_radius(1);
+    sphere.set_position(VEC3_ZERO);
+
+    int index;
+    if(middle_space1.empty()) {
+        index = spheres_array_length;
+        spheres_array_length++;
+    }
+    else {
+        index = middle_space1.front();
+        middle_space1.erase(middle_space1.begin());
+    }
+    spheres[index] = sphere;
+    objects.push_back(spheres + index);
+    selecting_object = spheres + index;
+}
+void add_mesh() {
+    Mesh mesh = load_mesh_from(request_mesh_name);
+
+    int index;
+    if(middle_space2.empty()) {
+        index = meshes_array_length;
+        meshes_array_length++;
+    }
+    else {
+        index = middle_space2.front();
+        middle_space2.erase(middle_space2.begin());
+    }
+    meshes[index] = mesh;
+    objects.push_back(meshes + index);
+    selecting_object = meshes + index;
+}
+void remove_object(Object* obj) {
+    selecting_object = nullptr;
+    if(obj == &FOCAL_PLANE) return;
+    for(int i = 0; i < (int)objects.size(); i++)
+        if(objects[i] == obj) {
+            objects.erase(objects.begin() + i);
+            break;
+        }
+
+    // find the removed object and update middle space vector
+    if(obj->is_sphere()) {
+        for(int i = 0; i < spheres_array_length; i++) {
+            if(spheres + i == obj) {
+                middle_space1.push_back(i);
+                return;
+            }
+        }
+    }
+    else {
+        for(int i = 0; i < meshes_array_length; i++) {
+            if(meshes + i == obj) {
+                middle_space2.push_back(i);
+                return;
+            }
+        }
+    }
+}
+
 float delta_time = 0;
 int main() {
-    // test sphere texture
-    Sphere earth;
-    earth.radius = 5;
-    earth.material.texture.load_image("texture/earth.jpg");
-    earth.material.texture.sphere_texture = true;
-    object_container.add_sphere(earth);
+    // spawn the focal plane
+    Mesh FOCAL_PLANE = load_mesh_from("default_model/plane.obj");
+    FOCAL_PLANE.visible = false;
+    objects.push_back(&FOCAL_PLANE);
 
-    Sphere sun;
-    sun.radius = 30;
-    sun.centre.x = -50;
-    sun.material.texture.load_image("texture/sun.jpg");
-    sun.material.texture.sphere_texture = true;
-    object_container.add_sphere(sun);
-
-    Sphere moon;
-    moon.radius = 1;
-    moon.centre.x = 8;
-    moon.centre.y = 5;
-    moon.material.texture.load_image("texture/moon.jpg");
-    moon.material.texture.sphere_texture = true;
-    object_container.add_sphere(moon);
+    Sphere sphere;
+    sphere.set_radius(5);
+    sphere.material.texture.load_image("texture/earth.jpg");
+    sphere.material.texture.sphere_texture = true;
+    objects.push_back(&sphere);
 
     // camera setting
     camera.position.z = -10;
@@ -294,6 +325,17 @@ int main() {
 
     while(running) {
         auto start = std::chrono::system_clock::now();
+
+        // force render
+        if(sphere_request or mesh_request)
+            stationary_frames_count = 0;
+        if(sphere_request)
+            add_sphere();
+        if(mesh_request)
+            add_mesh();
+        sphere_request = false;
+        mesh_request = false;
+
         while(SDL_PollEvent(&(sdl.event))) {
             SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
             sdl.process_gui_event();
@@ -309,10 +351,9 @@ int main() {
 
                 HitInfo hit = ray_collision(camera.ray(mouse_pos_x, mouse_pos_y));
                 if(hit.did_hit) {
-                    selecting_object = hit.object_id;
-                    selecting_object_type = hit.object_type;
+                    selecting_object = hit.object;
                 }
-                else selecting_object = -1;
+                else selecting_object = nullptr;
             }
 
             bool keydown = sdl.event.type == SDL_KEYDOWN;
@@ -388,10 +429,13 @@ int main() {
         float old_blur_rate = camera.blur_rate;
 
         sdl.gui(
+            &screen_color,
             &lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay,
             &WIDTH, &HEIGHT,
-            &object_container, &selecting_object, &selecting_object_type,
-            &camera, &gamma_correction,
+            &objects, selecting_object,
+            &sphere_request, &mesh_request, &request_mesh_name,
+            &remove_object,
+            &camera,
             &up_sky_color, &down_sky_color,
             &running
         );
@@ -404,8 +448,6 @@ int main() {
                 or camera.HEIGHT != HEIGHT)
             update_camera();
 
-        bool still_drawing = stationary_frames_count <= render_frame_count;
-        if(still_drawing) copy_pixel();
         sdl.render();
 
         auto end = std::chrono::system_clock::now();

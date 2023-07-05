@@ -12,21 +12,20 @@ struct HitInfo {
     float distance = 1e6;
     Vec3 normal = VEC3_ZERO;
     Material material;
-    int object_id = -1;
-    int object_type = TYPE_SPHERE;
+    Object* object = nullptr;
 };
 struct Ray {
     bool hit_from_inside = false;
     Vec3 direction = VEC3_ZERO;
     Vec3 origin = VEC3_ZERO;
     float max_range = 50.0f;
-    HitInfo cast_to(Sphere sphere) {
+    HitInfo cast_to_sphere(Vec3 centre, float radius, Material mat) {
         HitInfo h;
 
-        Vec3 offset_origin = origin - sphere.centre;
+        Vec3 offset_origin = origin - centre;
         float a = direction.squared_length();
         float b = offset_origin.dot(direction);
-        float c = offset_origin.squared_length() - sphere.radius * sphere.radius;
+        float c = offset_origin.squared_length() - radius * radius;
         float D = b * b - a * c;
 
         if(D >= 0) {
@@ -43,17 +42,16 @@ struct Ray {
             h.did_hit = true;
             h.distance = distance;
             h.point = origin + direction * distance;
-            h.normal = (h.point - sphere.centre).normalize();
-            h.material = sphere.material;
+            h.normal = (h.point - centre).normalize();
+            h.material = mat;
             if(hit_from_inside) {
                 h.normal = -h.normal;
                 h.material.refractive_index = RI_AIR;
             }
         }
-        h.object_type = TYPE_SPHERE;
         return h;
     }
-    HitInfo cast_to(Triangle tri) {
+    HitInfo cast_to_triangle(Triangle tri) {
         Vec3 edgeAB = tri.vert[1] - tri.vert[0];
         Vec3 edgeAC = tri.vert[2] - tri.vert[0];
 
@@ -68,6 +66,11 @@ struct Ray {
         float invDet = 1 / determinant;
 
         float dst = ao.dot(normalVector) * invDet;
+        if(dst > max_range) {
+            HitInfo h;
+            h.did_hit = false;
+            return h;
+        }
         float u = edgeAC.dot(dao) * invDet;
         float v = -(edgeAB.dot(dao)) * invDet;
         float w = 1 - u - v;
@@ -90,20 +93,19 @@ struct Ray {
         float tFar = fmin(fmin(t2.x, t2.y), t2.z);
         return tNear <= tFar;
     }
-    HitInfo cast_to(Mesh mesh) {
+    HitInfo cast_to_mesh(Vec3 AABB_min, Vec3 AABB_max, std::vector<Triangle> tris) {
         HitInfo closest;
         closest.did_hit = false;
         closest.distance = 1e6;
         // assume that mesh.calculate_AABB() is called at least once
         // if not collide with AABB then skip
-        if(!cast_to_AABB(mesh.AABB_min,mesh.AABB_max)) return closest;
+        if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
-        for(auto tri: mesh.tris) {
-            HitInfo h = cast_to(tri);
+        for(Triangle tri: tris) {
+            HitInfo h = cast_to_triangle(tri);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }
-        closest.object_type = TYPE_MESH;
         return closest;
     }
 };

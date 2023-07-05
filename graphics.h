@@ -20,12 +20,10 @@ using namespace cimg_library;
 
 class SDL {
 private:
-    std::vector<std::vector<Vec3>> screen_color;
     SDL_Texture* texture;
     ImGuiIO io;
 
-    int prev_object_id = -1;
-    int prev_object_type;
+    Object* prev_object = nullptr;
 
     // object transform property
     float position[3];
@@ -48,10 +46,10 @@ private:
     bool show_crosshair = false;
     float up_sky_color[3] = {0.5, 0.7, 1.0};
     float down_sky_color[3] = {1.0, 1.0, 1.0};
+    float gamma = 1.0f;
 
-    int focal_plane_id = -5;
+    Object* focal_plane = nullptr;
     bool show_focal_plane = false;
-    bool focal_plane_spawned = false;
 
 public:
     SDL_Event event;
@@ -75,8 +73,6 @@ public:
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
 
-        screen_color = std::vector<std::vector<Vec3>>(MAX_WIDTH, v_height);
-
         // setup imgui
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -96,11 +92,13 @@ public:
         disable_drawing();
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
     }
-    void save_image() {
+    void save_image(std::vector<std::vector<Vec3>>* screen_color, int tonemapping_method, float gamma) {
         CImg<int> image(WIDTH, HEIGHT, 1, 3);
         for(int x = 0; x < WIDTH; x++)
             for(int y = 0; y < HEIGHT; y++) {
-                Vec3 c = screen_color[x][y];
+                Vec3 c = (*screen_color)[x][y];
+                c = tonemap(c, tonemapping_method);
+                c = gamma_correct(c, gamma);
                 int COLOR[] = {int(c.x * 255), int(c.y * 255), int(c.z * 255)};
                 image.draw_point(x, y, COLOR, 1.0f);
             }
@@ -119,10 +117,30 @@ public:
     void process_gui_event() {
         ImGui_ImplSDL2_ProcessEvent(&event);
     }
-    void gui(bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int* width, int* height, ObjectContainer* oc, int* selecting_object, int* selecting_object_type, Camera* camera, float* gamma_correction, Vec3* up_sky_c, Vec3* down_sky_c, bool* running) {
+    void gui(std::vector<std::vector<Vec3>>* screen,
+             bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay,
+             int* width, int* height,
+             std::vector<Object*>* oc, Object* selecting_object,
+             bool* make_sphere_request, bool* make_mesh_request, std::string* request_mesh_name,
+             void (*remove_object_func)(Object*),
+             Camera* camera,
+             Vec3* up_sky_c, Vec3* down_sky_c,
+             bool* running) {
         ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
+
+        // copy all pixel to renderer
+        enable_drawing();
+        for(int x = 0; x < WIDTH; x++)
+            for(int y = 0; y < HEIGHT; y++) {
+                // post processing
+                Vec3 COLOR = tonemap((*screen)[x][y], RGB_CLAMPING);
+                COLOR = gamma_correct(COLOR, gamma);
+
+                draw_pixel(x, y, COLOR);
+            }
+        disable_drawing();
         
         if(ImGui::CollapsingHeader("Editor")) {
             std::string info = "done rendering";
@@ -151,20 +169,18 @@ public:
             bool old_show_focal_plane = show_focal_plane;
             ImGui::Checkbox("show focal plane", &show_focal_plane);
             if(show_focal_plane) {
-                // add focal plane mesh if not have
-                if(!focal_plane_spawned) {
-                    focal_plane_id = oc->add_mesh(load_mesh_from("default_model/plane.obj"));
-                    focal_plane_spawned = true;
+                // add focal plane if not have
+                if(focal_plane == nullptr) {
+                    focal_plane = (*oc)[0];
                 }
-                // "show" the focal plane
-                oc->meshes_available[focal_plane_id] = true;
+                // show the focal plane
+                focal_plane->visible = true;
 
                 Material mat;
                 mat.color = BLACK;
                 mat.emission_color = WHITE;
                 mat.emission_strength = 0.1f;
 
-                Mesh* focal_plane = &(oc->meshes[focal_plane_id]);
                 Vec3 look_dir = camera->get_looking_direction();
                 Vec3 new_pos = camera->position + look_dir * camera->focal_length;
                 // get perpendicular vector of camera looking dir
@@ -184,9 +200,9 @@ public:
                 // calculate AABB for rendering
                 focal_plane->calculate_AABB();
             }
-            else {
-                // "hide" the focal plane object
-                oc->meshes_available[focal_plane_id] = false;
+            else if(focal_plane != nullptr) {
+                // hide the focal plane object
+                focal_plane->visible = false;
             }
             // force render if clicked
             if(old_show_focal_plane != show_focal_plane)
@@ -213,14 +229,14 @@ public:
                 *frame_num = *frame_count;
 
             if(ImGui::Button("fit window size with viewport size")) SDL_SetWindowSize(window, *width, *height);
-            if(ImGui::Button("save image")) save_image();
+            if(ImGui::Button("save image")) save_image(screen, RGB_CLAMPING, gamma);
             ImGui::SameLine();
             if(ImGui::Button("quit"))
                 *running = false;
         }
 
         if(ImGui::CollapsingHeader("camera")) {
-            ImGui::DragFloat("gamma correction", gamma_correction, 0.01f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("gamma correction", &gamma, 0.01f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::SliderFloat("FOV", &(camera->FOV), 0, 180);
             ImGui::DragFloat("focal length", &(camera->focal_length), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
@@ -234,116 +250,78 @@ public:
         }
 
         ImGui::Begin("object property");
-        if(*selecting_object == -1) {
-            int id = -1;
+        if(selecting_object == nullptr) {
             if(ImGui::Button("add sphere")) {
-                Sphere sphere;
-                id = oc->add_sphere(sphere);
-                *selecting_object = id;
-                *selecting_object_type = TYPE_SPHERE;
+                *make_sphere_request = true;
             }
             ImGui::SameLine();
             if(ImGui::Button("add plane")) {
-                Mesh mesh = load_mesh_from("default_model/plane.obj");
-                id = oc->add_mesh(mesh);
-                *selecting_object = id;
-                *selecting_object_type = TYPE_MESH;
+                *make_mesh_request = true;
+                *request_mesh_name = "default_model/plane.obj";
             }
             ImGui::SameLine();
             if(ImGui::Button("add cube")) {
-                Mesh mesh = load_mesh_from("default_model/cube.obj");
-                id = oc->add_mesh(mesh);
-                *selecting_object = id;
-                *selecting_object_type = TYPE_MESH;
+                *make_mesh_request = true;
+                *request_mesh_name = "default_model/cube.obj";
             }
             ImGui::SameLine();
             if(ImGui::Button("add dodecahedron")) {
-                Mesh mesh = load_mesh_from("default_model/dodecahedron.obj");
-                id = oc->add_mesh(mesh);
-                *selecting_object = id;
-                *selecting_object_type = TYPE_MESH;
+                *make_mesh_request = true;
+                *request_mesh_name = "default_model/dodecahedron.obj";
             }
-            if(id != -1)
-                *frame_num = 0;
         }
-        else if(*selecting_object == focal_plane_id and *selecting_object_type == TYPE_MESH) {
+        else if(selecting_object == focal_plane) {
             ImGui::Text("selecting focal plane");
         }
         else {
             const char* typ;
-            if(*selecting_object_type == TYPE_SPHERE)
+            if(selecting_object->is_sphere())
                 typ = std::string("sphere").c_str();
             else
                 typ = std::string("mesh").c_str();
-            ImGui::Text("selecting %s %d", typ, *selecting_object);
+            ImGui::Text("selecting a %s", typ);
 
             // if select a new object
-            if(prev_object_id != *selecting_object or prev_object_type != *selecting_object_type) {
-                if(*selecting_object_type == TYPE_SPHERE) {
-                    Vec3 centre = oc->spheres[*selecting_object].centre;
-                    Material mat = oc->spheres[*selecting_object].material;
+            if(prev_object != selecting_object) {
+                Vec3 pos = selecting_object->get_position();
+                Vec3 rot = selecting_object->get_rotation();
+                Vec3 scl = selecting_object->get_scale();
+                float rad = selecting_object->get_radius();
+                Material mat = selecting_object->get_material();
 
-                    position[0] = centre.x;
-                    position[1] = centre.y;
-                    position[2] = centre.z;
+                position[0] = pos.x;
+                position[1] = pos.y;
+                position[2] = pos.z;
 
-                    rotation[0] = rad2deg(mat.texture.texture_rotation.x);
-                    rotation[1] = rad2deg(mat.texture.texture_rotation.y);
-                    rotation[2] = rad2deg(mat.texture.texture_rotation.z);
+                rotation[0] = rad2deg(rot.x);
+                rotation[1] = rad2deg(rot.y);
+                rotation[2] = rad2deg(rot.z);
 
-                    radius = oc->spheres[*selecting_object].radius;
-                    color[0] = mat.color.x;
-                    color[1] = mat.color.y;
-                    color[2] = mat.color.z;
+                scale[0] = scl.x;
+                scale[1] = scl.y;
+                scale[2] = scl.z;
 
-                    emission_color[0] = mat.emission_color.x;
-                    emission_color[1] = mat.emission_color.y;
-                    emission_color[2] = mat.emission_color.z;
-                    emission_strength = mat.emission_strength;
+                radius = rad;
+                
+                color[0] = mat.color.x;
+                color[1] = mat.color.y;
+                color[2] = mat.color.z;
 
-                    roughness = mat.roughness;
-                    transparent = mat.transparent;
-                    refractive_index = mat.refractive_index;
-                }
-                else {
-                    Vec3 pos = oc->meshes[*selecting_object].get_position();
-                    Vec3 rot = oc->meshes[*selecting_object].get_rotation();
-                    Vec3 scl = oc->meshes[*selecting_object].get_scale();
-                    Material mat = oc->meshes[*selecting_object].get_material();
+                emission_color[0] = mat.emission_color.x;
+                emission_color[1] = mat.emission_color.y;
+                emission_color[2] = mat.emission_color.z;
+                emission_strength = mat.emission_strength;
 
-                    position[0] = pos.x;
-                    position[1] = pos.y;
-                    position[2] = pos.z;
-
-                    rotation[0] = rad2deg(rot.x);
-                    rotation[1] = rad2deg(rot.y);
-                    rotation[2] = rad2deg(rot.z);
-
-                    scale[0] = scl.x;
-                    scale[1] = scl.y;
-                    scale[2] = scl.z;
-                    
-                    color[0] = mat.color.x;
-                    color[1] = mat.color.y;
-                    color[2] = mat.color.z;
-
-                    emission_color[0] = mat.emission_color.x;
-                    emission_color[1] = mat.emission_color.y;
-                    emission_color[2] = mat.emission_color.z;
-                    emission_strength = mat.emission_strength;
-
-                    roughness = mat.roughness;
-                    transparent = mat.transparent;
-                    refractive_index = mat.refractive_index;
-                }
+                roughness = mat.roughness;
+                transparent = mat.transparent;
+                refractive_index = mat.refractive_index;
             }
-            prev_object_id = *selecting_object;
-            prev_object_type = *selecting_object_type;
+            prev_object = selecting_object;
 
             ImGui::Text("transform");
             ImGui::DragFloat3("position", position, 0.1f);
             ImGui::DragFloat3("rotation", rotation, 1.0f);
-            if(*selecting_object_type == TYPE_SPHERE) {
+            if(selecting_object->is_sphere()) {
                 ImGui::DragFloat("radius", &radius, 0.5f);
             }
             else {
@@ -413,65 +391,43 @@ public:
             Vec3 new_color = Vec3(color[0], color[1], color[2]);
             Vec3 new_emission_color = Vec3(emission_color[0], emission_color[1], emission_color[2]);
 
-            if(*selecting_object_type == TYPE_SPHERE) {
-                Sphere* sphere = &(oc->spheres[*selecting_object]);
-                Material* mat = &(sphere->material);
-                bool object_changed = sphere->centre != new_pos
-                                      or sphere->radius != radius
-                                      or mat->color != new_color
-                                      or mat->emission_color != new_emission_color
-                                      or mat->emission_strength != emission_strength
-                                      or mat->roughness != roughness
-                                      or mat->transparent != transparent
-                                      or mat->refractive_index != refractive_index
-                                      or mat->texture.texture_rotation != new_rot;
-                if(object_changed) {
-                    sphere->centre = new_pos;
-                    sphere->radius = radius;
-                    mat->color = new_color;
-                    mat->emission_color = new_emission_color;
-                    mat->emission_strength = emission_strength;
-                    mat->roughness = roughness;
-                    mat->transparent = transparent;
-                    mat->refractive_index = refractive_index;
-                    mat->texture.texture_rotation = new_rot;
-                    *frame_num = 0;
-                }
-            }
-            else {
-                Mesh* mesh = &(oc->meshes[*selecting_object]);
-                Material mat = mesh->get_material();
-                bool object_changed = mesh->get_position() != new_pos
-                                      or mesh->get_rotation() != new_rot
-                                      or mesh->get_scale() != new_scl
-                                      or mat.color != new_color
-                                      or mat.emission_color != new_emission_color
-                                      or mat.emission_strength != emission_strength
-                                      or mat.roughness != roughness
-                                      or mat.transparent != transparent
-                                      or mat.refractive_index != refractive_index;
-                if(object_changed) {
-                    mesh->set_scale(new_scl);
-                    mesh->set_rotation(new_rot);
-                    mesh->set_position(new_pos);
-                    mat.color = new_color;
-                    mat.emission_color = new_emission_color;
-                    mat.emission_strength = emission_strength;
-                    mat.roughness = roughness;
-                    mat.transparent = transparent;
-                    mat.refractive_index = refractive_index;
-                    mesh->set_material(mat);
-                    mesh->calculate_AABB();
-                    *frame_num = 0;
-                }
+            Object* obj = selecting_object;
+            Material mat = obj->get_material();
+            bool scale_changed;
+            if(obj->is_sphere())
+                scale_changed = obj->get_radius() != radius;
+            else
+                scale_changed = obj->get_scale() != new_scl;
+
+            bool object_changed = obj->get_position() != new_pos
+                                    or obj->get_rotation() != new_rot
+                                    or scale_changed
+                                    or mat.color != new_color
+                                    or mat.emission_color != new_emission_color
+                                    or mat.emission_strength != emission_strength
+                                    or mat.roughness != roughness
+                                    or mat.transparent != transparent
+                                    or mat.refractive_index != refractive_index;
+            if(object_changed) {
+                if(obj->is_sphere())
+                    obj->set_radius(radius);
+                else
+                    obj->set_scale(new_scl);
+                obj->set_rotation(new_rot);
+                obj->set_position(new_pos);
+                mat.color = new_color;
+                mat.emission_color = new_emission_color;
+                mat.emission_strength = emission_strength;
+                mat.roughness = roughness;
+                mat.transparent = transparent;
+                mat.refractive_index = refractive_index;
+                obj->set_material(mat);
+                obj->calculate_AABB();
+                *frame_num = 0;
             }
             if(ImGui::Button("delete object")) {
-                if(*selecting_object_type == TYPE_SPHERE)
-                    oc->remove_sphere(*selecting_object);
-                else
-                    oc->remove_mesh(*selecting_object);
-
-                *selecting_object = -1;
+                remove_object_func(selecting_object);
+                selecting_object = nullptr;
                 *frame_num = 0;
             }
         }
@@ -484,7 +440,6 @@ public:
         SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch);
     }
     void draw_pixel(int x, int y, Vec3 color) {
-        screen_color[x][y] = color;
         pixels[y * pitch + x * 4 + 0] = color.z * 255;
         pixels[y * pitch + x * 4 + 1] = color.y * 255;
         pixels[y * pitch + x * 4 + 2] = color.x * 255;

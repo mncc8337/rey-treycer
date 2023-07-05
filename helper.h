@@ -30,7 +30,6 @@ inline Vec3 tonemap(Vec3 v, int style) {
     }
 }
 inline Vec3 gamma_correct(Vec3 color, float t) {
-    // t need to in range [1, 2]
     return Vec3(pow(color.x, t), pow(color.y, t), pow(color.z, t));
 }
 
