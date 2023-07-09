@@ -36,7 +36,9 @@ private:
     float color[3];
     float emission_color[3];
     float emission_strength = 0.0f;
-    float roughness = 1;
+    float roughness = 1.0f;
+    float specular_color[3];
+    float metal = 1.0f;
     bool transparent = false;
     float refractive_index = 0;
     const char* refractive_index_items[6] = {"air", "water", "glass", "flint glass", "diamond", "self-define"};
@@ -220,7 +222,7 @@ public:
 
             ImGui::InputInt("frame count", frame_count, 1);
             if(ImGui::IsItemHovered())
-                    ImGui::SetTooltip("number of frame will be rendered");
+                ImGui::SetTooltip("number of frame will be rendered");
 
             if(ImGui::Button("render"))
                 *frame_num = 0;
@@ -313,6 +315,12 @@ public:
                 emission_strength = mat.emission_strength;
 
                 roughness = mat.roughness;
+                metal = mat.metal;
+
+                specular_color[0] = mat.specular_color.x;
+                specular_color[1] = mat.specular_color.y;
+                specular_color[2] = mat.specular_color.z;
+
                 transparent = mat.transparent;
                 refractive_index = mat.refractive_index;
             }
@@ -330,9 +338,19 @@ public:
             }
             ImGui::Text("material");
             ImGui::ColorEdit3("color", color);
+            if(ImGui::IsItemHovered())
+                ImGui::SetTooltip("inner coat color (light can only diffuse if not transparency)");
             ImGui::ColorEdit3("emission color", emission_color);
             ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::SliderFloat("roughness", &roughness, 0, 1);
+            if(ImGui::IsItemHovered())
+                ImGui::SetTooltip("how rough the inner coat is");
+            ImGui::SliderFloat("metal", &metal, 0, 1);
+            if(ImGui::IsItemHovered())
+                ImGui::SetTooltip("how hard the outer coat is to be penetrated");
+            ImGui::ColorEdit3("specular color", specular_color);
+            if(ImGui::IsItemHovered())
+                ImGui::SetTooltip("outer coat color (light can pass through and be tinted)\ncontrolled through metal property\nmimic the property of plastics, fruits,...");
             ImGui::Checkbox("transparent", &transparent);
             if(transparent) {
                 ImGui::Combo("refractive index", &refractive_index_current_item, refractive_index_items, 6);
@@ -390,6 +408,7 @@ public:
             Vec3 new_scl = Vec3(scale[0], scale[1], scale[2]);
             Vec3 new_color = Vec3(color[0], color[1], color[2]);
             Vec3 new_emission_color = Vec3(emission_color[0], emission_color[1], emission_color[2]);
+            Vec3 new_specular_color = Vec3(specular_color[0], specular_color[1], specular_color[2]);
 
             Object* obj = selecting_object;
             Material mat = obj->get_material();
@@ -406,6 +425,8 @@ public:
                                     or mat.emission_color != new_emission_color
                                     or mat.emission_strength != emission_strength
                                     or mat.roughness != roughness
+                                    or mat.metal != metal
+                                    or mat.specular_color != new_specular_color
                                     or mat.transparent != transparent
                                     or mat.refractive_index != refractive_index;
             if(object_changed) {
@@ -419,6 +440,8 @@ public:
                 mat.emission_color = new_emission_color;
                 mat.emission_strength = emission_strength;
                 mat.roughness = roughness;
+                mat.metal = metal;
+                mat.specular_color = new_specular_color;
                 mat.transparent = transparent;
                 mat.refractive_index = refractive_index;
                 obj->set_material(mat);

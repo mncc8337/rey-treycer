@@ -95,9 +95,11 @@ Vec3 ray_trace(int x, int y) {
             ray.origin = h.point;
             Vec3 diffuse_direction = (h.normal + random_direction()).normalize();
             Vec3 specular_direction = reflection(h.normal, old_direction);
+            float rand = random_val();
+            bool is_specular_bounce = h.material.metal > rand;
 
             if(!h.material.transparent)
-                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
+                ray.direction = lerp(diffuse_direction, specular_direction, (1 - h.material.roughness) * is_specular_bounce);
             // use refraction ray instead
             else {
                 Vec3 refraction_direction(0, 0, 0);
@@ -107,7 +109,7 @@ Vec3 ray_trace(int x, int y) {
                 float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
                 bool cannot_refract = ri_ratio * sin_theta > 1.0;
-                if(cannot_refract or reflectance(cos_theta, ri_ratio) > random_val())
+                if(cannot_refract or reflectance(cos_theta, ri_ratio) > rand)
                     refraction_direction = specular_direction;
                 else {
                     refraction_direction = refraction(h.normal, old_direction, ri_ratio);
@@ -127,7 +129,7 @@ Vec3 ray_trace(int x, int y) {
                     color = h.material.texture.get_sphere_texture(h.normal);
             }
 
-            ray_color = ray_color * color;
+            ray_color = ray_color * lerp(color, h.material.specular_color, is_specular_bounce);
         }
         else {
             incomming_light += ray_color * get_environment_light(ray.direction);
