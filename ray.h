@@ -8,18 +8,16 @@
 struct HitInfo {
     bool did_hit = false;
     Vec3 point = VEC3_ZERO;
-    Vec3 second_point = VEC3_ZERO;
-    float distance = 1e6;
+    float distance = INFINITY;
     Vec3 normal = VEC3_ZERO;
     Material material;
     Object* object = nullptr;
 };
 struct Ray {
-    bool hit_from_inside = false;
     Vec3 direction = VEC3_ZERO;
     Vec3 origin = VEC3_ZERO;
     float max_range = 50.0f;
-    HitInfo cast_to_sphere(Vec3 centre, float radius, Material mat) {
+    HitInfo cast_to_sphere(Vec3 centre, float radius, Material mat, bool inside_object) {
         HitInfo h;
 
         Vec3 offset_origin = origin - centre;
@@ -32,7 +30,7 @@ struct Ray {
             const float sqrt_D = sqrt(D);
             float distance;
             // hit from outside
-            if(!hit_from_inside) 
+            if(!inside_object) 
                 distance = (-b - sqrt_D) / a;
             // hit from inside
             else 
@@ -44,19 +42,19 @@ struct Ray {
             h.point = origin + direction * distance;
             h.normal = (h.point - centre).normalize();
             h.material = mat;
-            if(hit_from_inside) {
+            if(inside_object) {
                 h.normal = -h.normal;
                 h.material.refractive_index = RI_AIR;
             }
         }
         return h;
     }
-    HitInfo cast_to_triangle(Triangle tri) {
+    HitInfo cast_to_triangle(Triangle tri, bool hit_backward) {
         Vec3 edgeAB = tri.vert[1] - tri.vert[0];
         Vec3 edgeAC = tri.vert[2] - tri.vert[0];
 
-        //  reverse the triangle so that ray can hit from inside
-        if(hit_from_inside) std::swap(edgeAB, edgeAC);
+        // flip the triangle so that ray can hit from backward side
+        if(hit_backward) std::swap(edgeAB, edgeAC);
 
         Vec3 normalVector = edgeAB.cross(edgeAC);
         Vec3 ao = origin - tri.vert[0];
@@ -93,16 +91,16 @@ struct Ray {
         float tFar = fmin(fmin(t2.x, t2.y), t2.z);
         return tNear <= tFar;
     }
-    HitInfo cast_to_mesh(Vec3 AABB_min, Vec3 AABB_max, std::vector<Triangle> tris) {
+    HitInfo cast_to_mesh(Vec3 AABB_min, Vec3 AABB_max, std::vector<Triangle> tris, bool inside_object) {
         HitInfo closest;
         closest.did_hit = false;
-        closest.distance = 1e6;
+        closest.distance = INFINITY;
         // assume that mesh.calculate_AABB() is called at least once
         // if not collide with AABB then skip
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
         for(Triangle tri: tris) {
-            HitInfo h = cast_to_triangle(tri);
+            HitInfo h = cast_to_triangle(tri, inside_object);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }

@@ -15,6 +15,7 @@ public:
     Vec3 position = VEC3_ZERO;
     Vec3 rotation = VEC3_ZERO;
     Material material;
+    bool ray_inside = false;
     bool visible = true;
     // mesh variable
     Vec3 AABB_min = VEC3_ZERO;

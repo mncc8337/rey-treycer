@@ -17,5 +17,8 @@ struct Material {
     bool transparent = false;
     float refractive_index = RI_GLASS;
 
+    bool smoke = false;
+    float density = 0.5f;
+
     Texture texture;
 };

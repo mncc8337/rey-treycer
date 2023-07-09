@@ -43,6 +43,8 @@ private:
     float refractive_index = 0;
     const char* refractive_index_items[6] = {"air", "water", "glass", "flint glass", "diamond", "self-define"};
     int refractive_index_current_item = 1;
+    bool smoke = false;
+    float density = 1.0f;
 
     // editor setting
     bool show_crosshair = false;
@@ -375,6 +377,9 @@ public:
                         break;
                 }
             }
+            ImGui::Checkbox("smoke", &smoke);
+            if(smoke)
+                ImGui::SliderFloat("smoke density", &density, 0, 1);
 
             if(uniform_scaling) {
                 int difference_count = (scale[0] != scale[1]) + (scale[1] != scale[2]) + (scale[0] != scale[2]);
@@ -428,7 +433,9 @@ public:
                                     or mat.metal != metal
                                     or mat.specular_color != new_specular_color
                                     or mat.transparent != transparent
-                                    or mat.refractive_index != refractive_index;
+                                    or mat.refractive_index != refractive_index
+                                    or mat.smoke != smoke
+                                    or mat.density != density;
             if(object_changed) {
                 if(obj->is_sphere())
                     obj->set_radius(radius);
@@ -444,6 +451,8 @@ public:
                 mat.specular_color = new_specular_color;
                 mat.transparent = transparent;
                 mat.refractive_index = refractive_index;
+                mat.smoke = smoke;
+                mat.density = density;
                 obj->set_material(mat);
                 obj->calculate_AABB();
                 *frame_num = 0;

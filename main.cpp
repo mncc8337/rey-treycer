@@ -69,9 +69,9 @@ HitInfo ray_collision(Ray ray) {
 
         HitInfo h;
         if(obj->is_sphere())
-            h = ray.cast_to_sphere(obj->get_position(), obj->get_radius(), obj->get_material());
+            h = ray.cast_to_sphere(obj->get_position(), obj->get_radius(), obj->get_material(), obj->ray_inside);
         else
-            h = ray.cast_to_mesh(obj->AABB_min, obj->AABB_max, obj->tris);
+            h = ray.cast_to_mesh(obj->AABB_min, obj->AABB_max, obj->tris, obj->ray_inside);
 
         if(h.did_hit and h.distance < closest_hit.distance) {
             closest_hit = h;
@@ -98,8 +98,9 @@ Vec3 ray_trace(int x, int y) {
             float rand = random_val();
             bool is_specular_bounce = h.material.metal > rand;
 
-            if(!h.material.transparent)
+            if(!h.material.transparent) {
                 ray.direction = lerp(diffuse_direction, specular_direction, (1 - h.material.roughness) * is_specular_bounce);
+            }
             // use refraction ray instead
             else {
                 Vec3 refraction_direction(0, 0, 0);
@@ -114,7 +115,7 @@ Vec3 ray_trace(int x, int y) {
                 else {
                     refraction_direction = refraction(h.normal, old_direction, ri_ratio);
                     current_refractive_index = h.material.refractive_index;
-                    ray.hit_from_inside = !ray.hit_from_inside;
+                    h.object->ray_inside = !h.object->ray_inside;
                 }
 
                 ray.direction = refraction_direction;
