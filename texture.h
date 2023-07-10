@@ -14,7 +14,6 @@ public:
     
     Vec3 texture_rotation = VEC3_ZERO; // for sphere only
 
-    // load image using SDL_image since CImg give me weird result
     void load_image(const char* chr) {
         image_texture = true;
         image = IMG_Load(chr);

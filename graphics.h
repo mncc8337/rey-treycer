@@ -12,11 +12,14 @@
 
 #include <vector>
 #include <iostream>
+
 #include <sstream>
 #include <iomanip>
-#include "CImg.h"
 
-using namespace cimg_library;
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
 
 class SDL {
 private:
@@ -97,26 +100,33 @@ public:
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
     }
     void save_image(std::vector<std::vector<Vec3>>* screen_color, int tonemapping_method, float gamma) {
-        CImg<int> image(WIDTH, HEIGHT, 1, 3);
+        unsigned char data[WIDTH * HEIGHT * 3];
+
         for(int x = 0; x < WIDTH; x++)
             for(int y = 0; y < HEIGHT; y++) {
-                Vec3 c = (*screen_color)[x][y];
-                c = tonemap(c, tonemapping_method);
-                c = gamma_correct(c, gamma);
-                int COLOR[] = {int(c.x * 255), int(c.y * 255), int(c.z * 255)};
-                image.draw_point(x, y, COLOR, 1.0f);
-            }
-        
+                Vec3 color = (*screen_color)[x][y];
+                color = tonemap(color, RGB_CLAMPING);
+                color = gamma_correct(color, gamma);
+                color *= 255;
+
+                int r = int(color.x);
+                int g = int(color.y);
+                int b = int(color.z);
+
+                data[(y * WIDTH + x) * 3 + 0] = r;
+                data[(y * WIDTH + x) * 3 + 1] = g;
+                data[(y * WIDTH + x) * 3 + 2] = b;
+            }     
         auto t = std::time(nullptr);
         auto tm = *std::localtime(&t);
 
         std::string str;
         std::ostringstream oss;
         oss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");
-        str = "res/" + oss.str() + ".bmp";
+        str = "res/" + oss.str() + ".png";
         char *c = const_cast<char*>(str.c_str());
 
-        image.save(c);
+        stbi_write_png(c, WIDTH, HEIGHT, 3, data, WIDTH * 3);
     }
     void process_gui_event() {
         ImGui_ImplSDL2_ProcessEvent(&event);
