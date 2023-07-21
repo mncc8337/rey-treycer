@@ -33,18 +33,15 @@ inline Vec3 gamma_correct(Vec3 color, float t) {
     return Vec3(pow(color.x, t), pow(color.y, t), pow(color.z, t));
 }
 
-std::mt19937 RNG;
-std::normal_distribution<float> normal_dist(0, 1);  // N(mean, stddeviation)
-std::uniform_real_distribution<float> dist(0.0, 1.0);
-
-inline void set_RNG_seed(int k) {
-    RNG.seed(k);
+inline float random_val(double from = 0, double to = 1) {
+    static std::uniform_real_distribution<float> distribution(from, to);
+    static std::mt19937 generator;
+    return distribution(generator);
 }
-inline float random_val() {
-    return dist(RNG);
-}
-inline float random_val_normal_distribution() {
-    return normal_dist(RNG);
+inline float random_val_normal_distribution(double from = 0, double to = 1) {
+    static std::normal_distribution<float> distribution(from, to);
+    static std::mt19937 generator;
+    return distribution(generator);
 }
 inline Vec3 random_direction() {
     float x = random_val_normal_distribution();
@@ -57,6 +54,11 @@ inline Vec3 random_direction_in_hemisphere(Vec3 n) {
     Vec3 v = random_direction();
     if(n.dot(v) < 0) v = -v;
     return v;
+}
+inline Vec3 random_point_in_circle() {
+    float angle = random_val() * 2 * M_PI;
+    Vec3 point_on_circle(cos(angle), sin(angle), 0);
+    return point_on_circle * sqrt(random_val());
 }
 inline Vec3 lerp(const Vec3 u, const Vec3 v, const float t) {
     return u * (1-t) + v * t;
@@ -76,7 +78,8 @@ inline float reflectance(float cosine, float ri) {
     // Use Schlick's approximation for reflectance.
     float r0 = (1-ri) / (1+ri);
     r0 *= r0;
-    return r0 + (1-r0) * pow((1 - cosine),5);
+    float icos = 1 - cosine;
+    return r0 + (1-r0) * icos * icos * icos * icos * icos;
 }
 
 inline Mesh load_mesh_from(std::string sFilename) {

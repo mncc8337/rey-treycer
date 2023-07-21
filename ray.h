@@ -17,30 +17,38 @@ struct Ray {
     Vec3 direction = VEC3_ZERO;
     Vec3 origin = VEC3_ZERO;
     float max_range = 50.0f;
-    HitInfo cast_to_sphere(Vec3 centre, float radius, Material mat, bool inside_object) {
+    HitInfo cast_to_sphere(Vec3 centre, float radius, Material mat) {
         HitInfo h;
 
         Vec3 offset_origin = origin - centre;
         float a = direction.squared_length();
         float b = offset_origin.dot(direction);
         float c = offset_origin.squared_length() - radius * radius;
-        float D = b * b - a * c;
+        // fix dark acne (idk why this work lol)
+        if(c < 1e-6) c = 0;
+        float discriminant = b * b - a * c;
 
-        if(D >= 0) {
-            const float sqrt_D = sqrt(D);
+        float l = c; // this is an approximation, the true equation is `l = offset_origin.length() - radius`
+        // determine wether the ray origin is in the sphere or not
+        bool inside_object = l <= 0;
+        if(l == 0 and b > 0) // if ray origin is lying on sphere surface and ray is going out then there must be no hit
+            return h;
+
+        if(discriminant >= 0) {
+            const float sqrt_discriminant = sqrt(discriminant);
             float distance;
-            // hit from outside
-            if(!inside_object) 
-                distance = (-b - sqrt_D) / a;
-            // hit from inside
+            // hit front face
+            if(!inside_object)
+                distance = (-b - sqrt_discriminant) / a;
+            // hit back face
             else 
-                distance = (-b + sqrt_D) / a;
-            if(distance < 0 or distance > max_range) return h;
+                distance = (-b + sqrt_discriminant) / a;
+            if(distance < 1e-6 or distance > max_range) return h;
 
             h.did_hit = true;
             h.distance = distance;
             h.point = origin + direction * distance;
-            h.normal = (h.point - centre).normalize();
+            h.normal = (h.point - centre) / radius;
             h.material = mat;
             if(inside_object) {
                 h.normal = -h.normal;
@@ -49,36 +57,51 @@ struct Ray {
         }
         return h;
     }
-    HitInfo cast_to_triangle(Triangle tri, bool hit_backward) {
+    HitInfo cast_to_triangle(Triangle tri) {
+        HitInfo h;
+
         Vec3 edgeAB = tri.vert[1] - tri.vert[0];
         Vec3 edgeAC = tri.vert[2] - tri.vert[0];
 
-        // flip the triangle so that ray can hit from backward side
-        if(hit_backward) std::swap(edgeAB, edgeAC);
-
         Vec3 normalVector = edgeAB.cross(edgeAC);
-        Vec3 ao = origin - tri.vert[0];
-        Vec3 dao = ao.cross(direction);
+        float determinant = -direction.dot(normalVector);
 
-        float determinant = -(direction.dot(normalVector));
+        bool hit_backward = false;
+        if(determinant < 1e-6) {
+            // then ray hit the triangle from the back face
+            hit_backward = true;
+            normalVector *= -1;
+            determinant *= -1;
+            std::swap(edgeAB, edgeAC);
+
+            if(determinant < 1e-6) return h;
+        }
+
         float invDet = 1 / determinant;
+        Vec3 ao = origin - tri.vert[0];
 
         float dst = ao.dot(normalVector) * invDet;
-        if(dst > max_range) {
-            HitInfo h;
-            h.did_hit = false;
-            return h;
-        }
-        float u = edgeAC.dot(dao) * invDet;
-        float v = -(edgeAB.dot(dao)) * invDet;
-        float w = 1 - u - v;
+        if(dst > max_range or dst <= 1e-6) return h;
 
-        HitInfo h;
-        h.did_hit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
-        h.point = origin + direction * dst;
+        Vec3 dao = ao.cross(direction);
+
+        float u = edgeAC.dot(dao) * invDet;
+        if(u < 0) return h;
+
+        float v = -(edgeAB.dot(dao)) * invDet;
+        if(v < 0) return h;
+
+        float w = 1 - u - v;
+        if(w < 0) return h;
+
+        h.did_hit = true;
+        h.point = origin + direction * (dst * 0.99999); // fix ray origin lie on triangle surface and cause dark acne
         h.normal = normalVector.normalize();
         h.distance = dst;
         h.material = tri.material;
+        if(hit_backward) {
+            h.material.refractive_index = RI_AIR;
+        }
         return h;
     }
     bool cast_to_AABB(Vec3 box_min, Vec3 box_max) {
@@ -91,7 +114,7 @@ struct Ray {
         float tFar = fmin(fmin(t2.x, t2.y), t2.z);
         return tNear <= tFar;
     }
-    HitInfo cast_to_mesh(Vec3 AABB_min, Vec3 AABB_max, std::vector<Triangle> tris, bool inside_object) {
+    HitInfo cast_to_mesh(Vec3 AABB_min, Vec3 AABB_max, std::vector<Triangle> tris) {
         HitInfo closest;
         closest.did_hit = false;
         closest.distance = INFINITY;
@@ -100,7 +123,7 @@ struct Ray {
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
         for(Triangle tri: tris) {
-            HitInfo h = cast_to_triangle(tri, inside_object);
+            HitInfo h = cast_to_triangle(tri);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }

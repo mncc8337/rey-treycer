@@ -40,8 +40,6 @@ private:
     float emission_color[3];
     float emission_strength = 0.0f;
     float roughness = 1.0f;
-    float specular_color[3];
-    float metal = 1.0f;
     bool transparent = false;
     float refractive_index = 0;
     const char* refractive_index_items[6] = {"air", "water", "glass", "flint glass", "diamond", "self-define"};
@@ -132,7 +130,8 @@ public:
         ImGui_ImplSDL2_ProcessEvent(&event);
     }
     void gui(std::vector<std::vector<Vec3>>* screen,
-             bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay,
+             bool* camera_control,
+             bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int running_thread_count,
              int* width, int* height,
              std::vector<Object*>* oc, Object* selecting_object,
              bool* make_sphere_request, bool* make_mesh_request, std::string* request_mesh_name,
@@ -157,9 +156,15 @@ public:
         disable_drawing();
         
         if(ImGui::CollapsingHeader("Editor")) {
-            std::string info = "done rendering";
+            std::string info;
             if(*frame_num + 1 < *frame_count)
                 info = "rendering frame " + std::to_string(*frame_num + 1) + '/' + std::to_string(*frame_count);
+            else if(running_thread_count != 0) {
+                info = "stopping, " + std::to_string(running_thread_count) + " thread(s) remain(s)";
+            }
+            else {
+                info = "done rendering";
+            }
 
             std::string delay_text = "last frame delay " + std::to_string(delay) + "ms";
 
@@ -174,6 +179,9 @@ public:
             *height = fmin(*height, MAX_HEIGHT);
             *height = fmax(*height, 2);
 
+            ImGui::Checkbox("camera control", camera_control);
+            if(ImGui::IsItemHovered())
+                ImGui::SetTooltip("turn on camera control\n WASD: position\n right/left/up/down: angle");
             ImGui::Checkbox("lazy ray tracing", lazy_ray_trace);
             if(ImGui::IsItemHovered())
                 ImGui::SetTooltip("increase performance but decrease image quality");
@@ -191,14 +199,12 @@ public:
                 focal_plane->visible = true;
 
                 Material mat;
-                mat.color = BLACK;
-                mat.emission_color = WHITE;
-                mat.emission_strength = 0.1f;
+                mat.color = Vec3(0.18, 0.5, 1.0);
+                mat.transparent = true;
+                mat.refractive_index = RI_AIR;
 
-                Vec3 look_dir = camera->get_looking_direction();
-                Vec3 new_pos = camera->position + look_dir * camera->focal_length;
-                // get perpendicular vector of camera looking dir
-                Vec3 rotating_axis = look_dir.cross({0, 1, 0}).normalize();
+                Vec3 new_pos = camera->position + camera->get_looking_direction() * camera->focus_distance;
+                Vec3 rotating_axis = -camera->get_right_direction();
 
                 focal_plane->tris = focal_plane->default_tris;
                 for(int i = 0; i < (int)focal_plane->tris.size(); i++) {
@@ -252,10 +258,11 @@ public:
         if(ImGui::CollapsingHeader("camera")) {
             ImGui::DragFloat("gamma correction", &gamma, 0.01f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 
-            ImGui::SliderFloat("FOV", &(camera->FOV), 0, 180);
-            ImGui::DragFloat("focal length", &(camera->focal_length), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::SliderFloat("FOV", &(camera->FOV), 1.0f, 179.0f);
+            ImGui::DragFloat("focus distance", &(camera->focus_distance), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("aperture", &(camera->aperture), 0.001f, 0, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("diverge strength", &(camera->diverge_strength), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::DragFloat("max range", &(camera->max_range), 1, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("blur rate", &(camera->blur_rate), 0.001f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::InputInt("max ray bounce", &(camera->max_ray_bounce_count), 1);
             camera->max_ray_bounce_count = fmax(camera->max_ray_bounce_count, 1);
 
@@ -327,14 +334,12 @@ public:
                 emission_strength = mat.emission_strength;
 
                 roughness = mat.roughness;
-                metal = mat.metal;
-
-                specular_color[0] = mat.specular_color.x;
-                specular_color[1] = mat.specular_color.y;
-                specular_color[2] = mat.specular_color.z;
 
                 transparent = mat.transparent;
                 refractive_index = mat.refractive_index;
+
+                smoke = mat.smoke;
+                density = mat.density;
             }
             prev_object = selecting_object;
 
@@ -357,12 +362,6 @@ public:
             ImGui::SliderFloat("roughness", &roughness, 0, 1);
             if(ImGui::IsItemHovered())
                 ImGui::SetTooltip("how rough the inner coat is");
-            ImGui::SliderFloat("metal", &metal, 0, 1);
-            if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("how hard the outer coat is to be penetrated");
-            ImGui::ColorEdit3("specular color", specular_color);
-            if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("outer coat color (light can pass through and be tinted)\ncontrolled through metal property\nmimic the property of plastics, fruits,...");
             ImGui::Checkbox("transparent", &transparent);
             if(transparent) {
                 ImGui::Combo("refractive index", &refractive_index_current_item, refractive_index_items, 6);
@@ -389,7 +388,7 @@ public:
             }
             ImGui::Checkbox("smoke", &smoke);
             if(smoke)
-                ImGui::SliderFloat("smoke density", &density, 0, 1);
+                ImGui::DragFloat("smoke density", &density, 0.001f, 0.00001f, 1.0f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
 
             if(uniform_scaling) {
                 int difference_count = (scale[0] != scale[1]) + (scale[1] != scale[2]) + (scale[0] != scale[2]);
@@ -423,7 +422,6 @@ public:
             Vec3 new_scl = Vec3(scale[0], scale[1], scale[2]);
             Vec3 new_color = Vec3(color[0], color[1], color[2]);
             Vec3 new_emission_color = Vec3(emission_color[0], emission_color[1], emission_color[2]);
-            Vec3 new_specular_color = Vec3(specular_color[0], specular_color[1], specular_color[2]);
 
             Object* obj = selecting_object;
             Material mat = obj->get_material();
@@ -440,8 +438,6 @@ public:
                                     or mat.emission_color != new_emission_color
                                     or mat.emission_strength != emission_strength
                                     or mat.roughness != roughness
-                                    or mat.metal != metal
-                                    or mat.specular_color != new_specular_color
                                     or mat.transparent != transparent
                                     or mat.refractive_index != refractive_index
                                     or mat.smoke != smoke
@@ -457,8 +453,6 @@ public:
                 mat.emission_color = new_emission_color;
                 mat.emission_strength = emission_strength;
                 mat.roughness = roughness;
-                mat.metal = metal;
-                mat.specular_color = new_specular_color;
                 mat.transparent = transparent;
                 mat.refractive_index = refractive_index;
                 mat.smoke = smoke;
