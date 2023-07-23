@@ -8,7 +8,8 @@
 class Triangle {
 public:
     Vec3 vert[3] = {VEC3_ZERO, VEC3_ZERO, VEC3_ZERO};
-    Material material;
+    Vec3 vert_texture[3] = {VEC3_ZERO, VEC3_ZERO, VEC3_ZERO}; // im lazy to create a vec2 class
+    Material* material;
 };
 class Object {
 protected:
@@ -89,6 +90,12 @@ class Mesh: public Object {
 private:
     Vec3 scale = Vec3(1, 1, 1);
 public:
+    void update_material() {
+        for(int i = 0; i < (int)tris.size(); i++) {
+            tris[i].material = &material;
+            default_tris[i].material = &material;
+        }
+    }
     void calculate_AABB() {
         Vec3 min =  Vec3(INFINITY, INFINITY, INFINITY);
         Vec3 max = -Vec3(INFINITY, INFINITY, INFINITY);
@@ -144,9 +151,6 @@ public:
         return scale;
     }
     void set_material(Material mat) {
-        for(int i = 0; i < (int)tris.size(); i++) {
-            tris[i].material = mat;
-        }
         material = mat;
     }
     bool is_sphere() {

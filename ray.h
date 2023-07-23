@@ -78,11 +78,11 @@ struct Ray {
         }
         return h;
     }
-    HitInfo cast_to_triangle(Triangle tri, bool both_face) {
+    HitInfo cast_to_triangle(Triangle* tri, bool both_face, bool calculate_uv) {
         HitInfo h;
 
-        Vec3 edgeAB = tri.vert[1] - tri.vert[0];
-        Vec3 edgeAC = tri.vert[2] - tri.vert[0];
+        Vec3 edgeAB = tri->vert[1] - tri->vert[0];
+        Vec3 edgeAC = tri->vert[2] - tri->vert[0];
 
         Vec3 normalVector = edgeAB.cross(edgeAC);
         float determinant = -direction.dot(normalVector);
@@ -101,7 +101,7 @@ struct Ray {
         }
 
         float invDet = 1 / determinant;
-        Vec3 ao = origin - tri.vert[0];
+        Vec3 ao = origin - tri->vert[0];
 
         float dst = ao.dot(normalVector) * invDet;
         if(dst > max_range or dst <= 1e-6) return h;
@@ -122,10 +122,16 @@ struct Ray {
         h.normal = normalVector.normalize();
         h.distance = dst;
 
-        h.u = u;
-        h.v = v;
+        if(calculate_uv) {
+            Vec3 vt1 = tri->vert_texture[0];
+            Vec3 vt2 = tri->vert_texture[1];
+            Vec3 vt3 = tri->vert_texture[2];
+            Vec3 coord = w * vt1 + u * vt2 + v * vt3;
+            h.u = coord.x;
+            h.v = coord.y;
+        }
 
-        h.material = tri.material;
+        h.material = *(tri->material);
         if(hit_backward) {
             h.front_face = false;
         }
@@ -141,7 +147,7 @@ struct Ray {
         float tFar = fmin(fmin(t2.x, t2.y), t2.z);
         return tNear <= tFar;
     }
-    HitInfo cast_to_mesh(Object* mesh) {
+    HitInfo cast_to_mesh(Object* mesh, bool calculate_uv) {
         Vec3 AABB_min = mesh->AABB_min;
         Vec3 AABB_max = mesh->AABB_max;
 
@@ -152,8 +158,8 @@ struct Ray {
         // if not collide with AABB then skip
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
-        for(Triangle tri: mesh->tris) {
-            HitInfo h = cast_to_triangle(tri, mesh->get_material().transparent);
+        for(int i = 0; i < (int)mesh->tris.size(); i++) {
+            HitInfo h = cast_to_triangle(&(mesh->tris[i]), mesh->get_material().transparent, calculate_uv);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }

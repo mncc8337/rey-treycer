@@ -199,11 +199,6 @@ public:
                 // show the focal plane
                 focal_plane->visible = true;
 
-                Material mat;
-                mat.color = Vec3(0.18, 0.5, 1.0);
-                mat.transparent = true;
-                mat.refractive_index = RI_AIR;
-
                 Vec3 new_pos = camera->position + camera->get_looking_direction() * camera->focus_distance;
                 Vec3 rotating_axis = -camera->get_right_direction();
 
@@ -216,7 +211,6 @@ public:
                         *pos = _rotate_on_axis(*pos, rotating_axis, camera->tilted_angle + M_PI / 2); // tilted angle
                         *pos = *pos + new_pos;
                     }
-                    focal_plane->tris[i].material = mat;
                 }
                 // calculate AABB for rendering
                 focal_plane->calculate_AABB();

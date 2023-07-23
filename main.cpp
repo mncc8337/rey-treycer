@@ -9,6 +9,7 @@
 #include "constant.h"
 #include "graphics.h"
 #include "objects.h"
+#include "texture.h"
 
 // #include "nlohmann/json.hpp"
 // using json = nlohmann::json;
@@ -70,13 +71,13 @@ HitInfo ray_collision(Ray* ray) {
         if(!obj->visible) continue;
 
         // only calculate uv if object use image texture
-        bool calculate_uv = obj->get_material().texture.image_texture;
+        bool calculate_uv = obj->get_material().texture->is_image_texture();
 
         HitInfo h;
         if(obj->is_sphere())
             h = ray->cast_to_sphere(obj, calculate_uv);
         else
-            h = ray->cast_to_mesh(obj);
+            h = ray->cast_to_mesh(obj, calculate_uv);
 
         if(h.did_hit and h.distance < closest_hit.distance) {
             closest_hit = h;
@@ -139,11 +140,10 @@ Vec3 ray_trace(int x, int y) {
             else {
                 ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
             }
-            
+
             Vec3 color = h.material.color;
-            if(h.material.texture.image_texture) {
-                if(h.material.texture.sphere_texture)
-                    color = h.material.texture.get_sphere_texture(h.u, h.v);
+            if(h.material.texture->is_image_texture()) {
+                    color = h.material.texture->get_texture(h.u, h.v);
             }
             ray_color = ray_color * color;
 
@@ -314,18 +314,26 @@ void remove_object(Object* obj) {
 
 float delta_time = 0;
 int main() {
+    Material FOCAL_PLANE_MAT;
+    FOCAL_PLANE_MAT.color = Vec3(0.18, 0.5, 1.0);
+    FOCAL_PLANE_MAT.transparent = true;
+    FOCAL_PLANE_MAT.refractive_index = RI_AIR;
+
     // spawn the focal plane
     Mesh FOCAL_PLANE = load_mesh_from("default_model/plane.obj");
     FOCAL_PLANE.visible = false;
+    FOCAL_PLANE.set_material(FOCAL_PLANE_MAT);
     objects.push_back(&FOCAL_PLANE);
 
-    Material mat;
-    mat.texture.load_image("texture/earth.jpg");
-    mat.texture.sphere_texture = true;
+    ImageTexture earth_tex;
+    earth_tex.load_image("texture/dice.png");
 
-    Sphere earth;
-    earth.set_material(mat);
-    objects.push_back(&earth);
+    Material mat;
+    mat.texture = &earth_tex;
+
+    Mesh mesh = load_mesh_from("default_model/cube-uv.obj");
+    mesh.set_material(mat);
+    objects.push_back(&mesh);
 
     // camera setting
     camera.position.z = 10;

@@ -82,38 +82,85 @@ inline float reflectance(float cosine, float ri) {
     return r0 + (1-r0) * icos * icos * icos * icos * icos;
 }
 
-inline Mesh load_mesh_from(std::string sFilename) {
+inline Mesh load_mesh_from(std::string filename = "") {
     Mesh out;
-    std::ifstream f(sFilename);
+
+    std::ifstream f(filename);
     if (!f.is_open()) {
         std::cout << "failed to load file\n";
         return out;
     }
 
-    // Local cache of verts
+    bool has_texture = false;
+
+    // local cache of verts
     std::vector<Vec3> verts;
+    std::vector<Vec3> texs;
+
     while (!f.eof()) {
         char line[128];
         f.getline(line, 128);
+
         std::stringstream s;
         s << line;
         char junk;
+
         if (line[0] == 'v') {
             Vec3 v = VEC3_ZERO;
-            s >> junk >> v.x >> v.y >> v.z;
-            verts.push_back(v);
+            if(line[1] == 't') {
+                has_texture = true;
+                s >> junk >> junk >> v.x >> v.y;
+                v.x = 1 - v.x;
+                v.y = 1 - v.y;
+                texs.push_back(v);
+            }
+            else {
+                s >> junk >> v.x >> v.y >> v.z;
+                verts.push_back(v);
+            }
         }
-        if (line[0] == 'f') {
-            int f[3];
-            s >> junk >> f[0] >> f[1] >> f[2];
-            Triangle tri;
-            tri.vert[0] = verts[f[0] - 1];
-            tri.vert[1] = verts[f[1] - 1];
-            tri.vert[2] = verts[f[2] - 1];
-            out.default_tris.push_back(tri);
+        else if(line[0] == 'f') {
+            if(has_texture) {
+                s >> junk;
+
+                std::string tokens[6];
+                int nTokenCount = -1;
+
+                while (!s.eof()) {
+                    char c = s.get();
+                    if (c == ' ' || c == '/')
+                        nTokenCount++;
+                    else
+                        tokens[nTokenCount].append(1, c);
+                }
+
+                tokens[nTokenCount].pop_back();
+
+                Triangle tri;
+                tri.vert[0] = verts[std::stoi(tokens[0]) - 1];
+                tri.vert[1] = verts[std::stoi(tokens[2]) - 1];
+                tri.vert[2] = verts[std::stoi(tokens[4]) - 1];
+
+                tri.vert_texture[0] = texs[std::stoi(tokens[1]) - 1];
+                tri.vert_texture[1] = texs[std::stoi(tokens[3]) - 1];
+                tri.vert_texture[2] = texs[std::stoi(tokens[5]) - 1];
+                out.default_tris.push_back(tri);
+                out.tris.push_back(tri);
+            }
+            else {
+                int f[3];
+                s >> junk >> f[0] >> f[1] >> f[2];
+                Triangle tri;
+                tri.vert[0] = verts[f[0] - 1];
+                tri.vert[1] = verts[f[1] - 1];
+                tri.vert[2] = verts[f[2] - 1];
+                out.default_tris.push_back(tri);
+                out.tris.push_back(tri);
+            }
         }
     }
-    out.tris = out.default_tris;
+
     out.calculate_AABB();
+    out.update_material();
     return out;
 }
