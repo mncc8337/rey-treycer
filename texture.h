@@ -1,36 +1,33 @@
 #pragma once
 #include "vec3.h"
 #include "constant.h"
-#include "transformation.h"
-#include <SDL2/SDL_image.h>
+
+#include "stb/stb_image.h"
+#include "stb/stb_image_write.h"
 
 #include <iostream>
 
 class Texture {
-    SDL_Surface* image;
+    int image_width, image_height;
+    int channels;
+    unsigned char *pixel_data;
 public:
     bool image_texture = false;
     bool sphere_texture = false;
-    
-    Vec3 texture_rotation = VEC3_ZERO; // for sphere only
 
     void load_image(const char* chr) {
         image_texture = true;
-        image = IMG_Load(chr);
+        pixel_data = stbi_load(chr, &image_width, &image_height, &channels, 3);
     }
-    Vec3 get_sphere_texture(Vec3 p) {
-        p = _rotate(p, texture_rotation);
-        float theta = acos(p.y);
-        float phi = atan2(p.z, p.x) + M_PI;
-        float u = phi / (2 * M_PI);
-        float v = theta / M_PI;
-        int x = u * (image->w - 1);
-        int y = v * (image->h - 1);
+    Vec3 get_sphere_texture(float u, float v) {
+        int x = u * (image_width - 1);
+        int y = v * (image_height - 1);
 
-        Uint8* pixel = (Uint8*)image->pixels + y * image->pitch + x * (int)image->format->BytesPerPixel;
-        Uint8 r, g, b;
-        SDL_GetRGB(*(Uint32*)pixel, image->format, &r, &g, &b);
+        unsigned char* pixel = pixel_data + (y * image_width + x) * channels;
+        unsigned char r = pixel[0];
+        unsigned char g = pixel[1];
+        unsigned char b = pixel[2];
 
-        return Vec3(r / 255.0f, g / 255.0f, b / 255.0f);
+        return Vec3(r, g, b) / 255.0f; // (normal + Vec3(1, 1, 1)) / 2
     };
 };

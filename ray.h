@@ -4,12 +4,14 @@
 #include "material.h"
 #include "objects.h"
 #include "helper.h"
+#include "transformation.h"
 
 struct HitInfo {
     bool did_hit = false;
     Vec3 point = VEC3_ZERO;
     float distance = INFINITY;
     Vec3 normal = VEC3_ZERO;
+    float u, v;
     Material material;
     Object* object = nullptr;
 };
@@ -17,8 +19,11 @@ struct Ray {
     Vec3 direction = VEC3_ZERO;
     Vec3 origin = VEC3_ZERO;
     float max_range = 50.0f;
-    HitInfo cast_to_sphere(Vec3 centre, float radius, Material mat) {
+    HitInfo cast_to_sphere(Object* sphere) {
         HitInfo h;
+
+        Vec3 centre = sphere->get_position();
+        float radius = sphere->get_radius();
 
         Vec3 offset_origin = origin - centre;
         float a = direction.squared_length();
@@ -49,7 +54,18 @@ struct Ray {
             h.distance = distance;
             h.point = origin + direction * distance;
             h.normal = (h.point - centre) / radius;
-            h.material = mat;
+
+            // calculate uv for texturing
+            Vec3 n = _rotate(h.normal, -sphere->rotation);
+            n.y *= -1; n.z *= -1; // correct normal
+
+            float theta = acos(-n.y);
+            float phi = atan2(-n.z, n.x) + M_PI;
+
+            h.u = phi / (2*M_PI);
+            h.v = theta / M_PI;
+
+            h.material = sphere->get_material();
             if(inside_object) {
                 h.normal = -h.normal;
                 h.material.refractive_index = RI_AIR;
@@ -114,7 +130,10 @@ struct Ray {
         float tFar = fmin(fmin(t2.x, t2.y), t2.z);
         return tNear <= tFar;
     }
-    HitInfo cast_to_mesh(Vec3 AABB_min, Vec3 AABB_max, std::vector<Triangle> tris) {
+    HitInfo cast_to_mesh(Object* mesh) {
+        Vec3 AABB_min = mesh->AABB_min;
+        Vec3 AABB_max = mesh->AABB_max;
+
         HitInfo closest;
         closest.did_hit = false;
         closest.distance = INFINITY;
@@ -122,7 +141,7 @@ struct Ray {
         // if not collide with AABB then skip
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
-        for(Triangle tri: tris) {
+        for(Triangle tri: mesh->tris) {
             HitInfo h = cast_to_triangle(tri);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;

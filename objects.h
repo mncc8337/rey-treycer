@@ -38,7 +38,6 @@ public:
         material = mat;
     };
     Material get_material() {
-        material.texture.texture_rotation = rotation;
         return material;
     }
     virtual void set_radius(float r) {

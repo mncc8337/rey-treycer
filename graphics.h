@@ -107,13 +107,14 @@ public:
                 color = gamma_correct(color, gamma);
                 color *= 255;
 
-                int r = int(color.x);
-                int g = int(color.y);
-                int b = int(color.z);
+                int r = color.x;
+                int g = color.y;
+                int b = color.z;
 
-                data[(y * WIDTH + x) * 3 + 0] = r;
-                data[(y * WIDTH + x) * 3 + 1] = g;
-                data[(y * WIDTH + x) * 3 + 2] = b;
+                unsigned char* pixel = data + (y * WIDTH + x) * 3;
+                pixel[0] = r;
+                pixel[1] = g;
+                pixel[2] = b;
             }     
         auto t = std::time(nullptr);
         auto tm = *std::localtime(&t);
