@@ -70,8 +70,8 @@ HitInfo ray_collision(Ray* ray) {
     for(Object* obj: objects) {
         if(!obj->visible) continue;
 
-        // only calculate uv if object use image texture
-        bool calculate_uv = obj->get_material().texture->is_image_texture();
+        // only calculate uv if object has textures
+        bool calculate_uv = obj->get_material().texture->has_texture();
 
         HitInfo h;
         if(obj->is_sphere())
@@ -142,8 +142,10 @@ Vec3 ray_trace(int x, int y) {
             }
 
             Vec3 color = h.material.color;
-            if(h.material.texture->is_image_texture()) {
-                    color = h.material.texture->get_texture(h.u, h.v);
+
+            Info inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
+            if(h.material.texture->has_texture()) {
+                color = h.material.texture->get_texture(inf);
             }
             ray_color = ray_color * color;
 
@@ -312,6 +314,10 @@ void remove_object(Object* obj) {
     }
 }
 
+Vec3 normal_map(Info h) {
+    return (h.normal + Vec3(1, 1, 1)) / 2;
+}
+
 float delta_time = 0;
 int main() {
     Material FOCAL_PLANE_MAT;
@@ -325,15 +331,28 @@ int main() {
     FOCAL_PLANE.set_material(FOCAL_PLANE_MAT);
     objects.push_back(&FOCAL_PLANE);
 
-    ImageTexture earth_tex;
-    earth_tex.load_image("texture/dice.png");
+    // dice
+    ImageTexture dice_tex;
+    dice_tex.load_image("texture/dice.png");
 
-    Material mat;
-    mat.texture = &earth_tex;
+    Material cube_mat;
+    cube_mat.texture = &dice_tex;
 
     Mesh mesh = load_mesh_from("default_model/cube-uv.obj");
-    mesh.set_material(mat);
+    mesh.set_material(cube_mat);
     objects.push_back(&mesh);
+
+    // texturing based on normals
+    ProceduralTexture normal_map_tex;
+    normal_map_tex.set_function(&normal_map);
+
+    Material sphere_mat;
+    sphere_mat.texture = &normal_map_tex;
+
+    Sphere sphere;
+    sphere.set_material(sphere_mat);
+    sphere.set_position({0, 5, 0});
+    objects.push_back(&sphere);
 
     // camera setting
     camera.position.z = 10;

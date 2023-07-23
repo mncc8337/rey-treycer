@@ -16,6 +16,7 @@ struct HitInfo {
     Material material;
     Object* object = nullptr;
 };
+
 struct Ray {
     Vec3 direction = VEC3_ZERO;
     Vec3 origin = VEC3_ZERO;

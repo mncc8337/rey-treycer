@@ -1,6 +1,5 @@
 #pragma once
 #include "vec3.h"
-#include "constant.h"
 #include "texture.h"
 
 struct Material {
