@@ -6,8 +6,8 @@ A simple ray tracer for learning purpose
 * [Dear ImGui](https://github.com/ocornut/imgui)
 * [stb](https://github.com/nothings/stb)
 ## build
-install [SDL2](https://www.libsdl.org/)
-clone [Dear ImGui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb) to the repo folder
+install [SDL2](https://www.libsdl.org/)\n
+clone [Dear ImGui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb) to the repo folder\n
 then run `make`
 ## Gallery
 <p float="left">
