@@ -309,7 +309,7 @@ int main() {
     objects.push_back(&earth);
 
     // camera setting
-    camera.position.z = -10;
+    camera.position.z = 10;
     camera.FOV = 90.0f;
     camera.max_range = 100;
     camera.max_ray_bounce_count = 50;
@@ -411,10 +411,10 @@ int main() {
             }
             bool camera_changed = false;
             for(int i = 0; i < 10; i++) camera_changed = camera_changed or keyhold[i];
-            if(keyhold[2]) camera.pan(-rot_speed);
-            if(keyhold[3]) camera.pan(rot_speed);
-            if(keyhold[0]) camera.tilt(-rot_speed);
-            if(keyhold[1]) camera.tilt(rot_speed);
+            if(keyhold[2]) camera.pan(rot_speed);
+            if(keyhold[3]) camera.pan(-rot_speed);
+            if(keyhold[0]) camera.tilt(rot_speed);
+            if(keyhold[1]) camera.tilt(-rot_speed);
             if(keyhold[4]) camera.move_foward(speed);
             if(keyhold[5]) camera.move_foward(-speed);
             if(keyhold[6]) camera.move_right(-speed);

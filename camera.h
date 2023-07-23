@@ -56,7 +56,7 @@ public:
         return new_ray;
     }
     // store viewport pixels position for camera rotation
-    // this is the position if camera looking direction is (0, 0, 1)
+    // this is the position if camera looking direction is (0, 0, -1)
     void init() {
         float viewport_width = 1;
         float viewport_height = (float)HEIGHT/(float)WIDTH;
@@ -67,7 +67,7 @@ public:
                 float _w = viewport_width * (0.5f - (x - 0.5f)/(float)WIDTH);
                 float _h = viewport_height * (0.5f - (y - 0.5f)/(float)HEIGHT);
 
-                pixel_in_world[x][y] = Vec3(-_w, _h, f).normalize();
+                pixel_in_world[x][y] = Vec3(-_w, _h, -f).normalize();
             }
     }
     void reset_rotation() {
@@ -106,12 +106,12 @@ public:
         position += dir;
     }
     Vec3 get_looking_direction() {
-        return Vec3(sin(panned_angle), sin(tilted_angle), cos(panned_angle));
+        return -Vec3(sin(panned_angle), sin(tilted_angle), cos(panned_angle));
     }
     Vec3 get_up_direction() {
-        return get_looking_direction().cross({1, 0, 0}).normalize();
+        return get_looking_direction().cross({-1, 0, 0}).normalize();
     }
     Vec3 get_right_direction() {
-        return get_looking_direction().cross({0, -1, 0}).normalize();
+        return get_looking_direction().cross({0, 1, 0}).normalize();
     }
 };
