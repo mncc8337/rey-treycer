@@ -1,11 +1,13 @@
-# reytreycer
+# rey-treycer
 
 A simple ray tracer for learning purpose
 ## Dependencies
+* [SDL2](https://www.libsdl.org/)
 * [Dear ImGui](https://github.com/ocornut/imgui)
 * [stb](https://github.com/nothings/stb)
 ## build
-clone all dependencies to the repo folder
+install [SDL2](https://www.libsdl.org/)
+clone [Dear ImGui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb) to the repo folder
 then run `make`
 ## Gallery
 <p float="left">
