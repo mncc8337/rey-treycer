@@ -351,7 +351,7 @@ public:
                 ImGui::DragFloat("radius", &radius, 0.5f);
             }
             else {
-                ImGui::DragFloat3("scaling", scale, 0.1f);
+                ImGui::DragFloat3("scaling", scale, 0.1f, 0.001f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
                 ImGui::Checkbox("uniform scaling", &uniform_scaling);
             }
             ImGui::Text("material");

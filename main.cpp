@@ -27,6 +27,8 @@ double delay = 0;
 bool keyhold[12];
 bool camera_control = true;
 
+float environment_refractive_index = RI_AIR;
+
 int render_frame_count = 3;
 
 int mouse_pos_x;
@@ -67,9 +69,12 @@ HitInfo ray_collision(Ray* ray) {
     for(Object* obj: objects) {
         if(!obj->visible) continue;
 
+        // only calculate uv if object use image texture
+        bool calculate_uv = obj->get_material().texture.image_texture;
+
         HitInfo h;
         if(obj->is_sphere())
-            h = ray->cast_to_sphere(obj);
+            h = ray->cast_to_sphere(obj, calculate_uv);
         else
             h = ray->cast_to_mesh(obj);
 
@@ -84,7 +89,10 @@ HitInfo ray_collision(Ray* ray) {
 Vec3 ray_trace(int x, int y) {
     Vec3 ray_color = WHITE;
     Vec3 incomming_light = BLACK;
-    float current_refractive_index = RI_AIR;
+
+    float current_refractive_index = environment_refractive_index;
+    std::vector<float> ri_difference_record;
+
     Ray ray = camera.ray(x, y);
 
     for(int i = 0; i <= camera.max_ray_bounce_count; i++) {
@@ -114,11 +122,23 @@ Vec3 ray_trace(int x, int y) {
                     refraction_direction = specular_direction;
                 else {
                     refraction_direction = refraction(h.normal, old_direction, ri_ratio);
-                    current_refractive_index = h.material.refractive_index;
+                    float ri_difference = h.material.refractive_index - current_refractive_index;
+                    if(h.front_face) {
+                        current_refractive_index += ri_difference;
+                        ri_difference_record.push_back(ri_difference);
+                    }
+                    else {
+                        if(ri_difference_record.size() == 0) { // if camera is inside object
+                            current_refractive_index = RI_AIR;
+                        }
+                        else {
+                            current_refractive_index -= ri_difference_record.back();
+                            ri_difference_record.pop_back();
+                        }
+                    }
                 }
 
                 ray.direction = refraction_direction;
-
             }
             
             Vec3 emitted_light = h.material.emission_color * h.material.emission_strength;

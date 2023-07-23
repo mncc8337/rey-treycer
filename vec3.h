@@ -22,6 +22,9 @@ public:
         z += v.z;
         return *this;
     }
+    Vec3& operator-=(const Vec3 &v) {
+        return *this += -v;
+    }
     Vec3 operator*=(const float t) {
         x *= t;
         y *= t;

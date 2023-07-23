@@ -11,10 +11,15 @@ public:
     Material material;
 };
 class Object {
-public:
+protected:
+    Vec3 localx = Vec3(1, 0, 0);
+    Vec3 localy = Vec3(0, 1, 0);
+    Vec3 localz = Vec3(0, 0, 1);
+
     Vec3 position = VEC3_ZERO;
     Vec3 rotation = VEC3_ZERO;
     Material material;
+public:
     bool visible = true;
     // mesh variable
     Vec3 AABB_min = VEC3_ZERO;
@@ -122,15 +127,16 @@ public:
         rotation = a;
     }
     void set_scale(Vec3 v) {
-        // reset
-        tris = default_tris;
-
+        if(scale.x == 0) scale.x = 1;
+        if(scale.x == 0) scale.x = 1;
+        if(scale.z == 0) scale.z = 1;
+        Vec3 d = v / scale;
         for(int i = 0; i < (int)tris.size(); i++)
             for(int j = 0; j < 3; j++) {
                 Vec3* pos = &(tris[i].vert[j]);
-                *pos = _rotate(*pos, rotation);
-                *pos = _scale(*pos, v);
-                *pos = *pos + position;
+                *pos -= position;
+                *pos = _scale(*pos, d);
+                *pos += position;
             }
         scale = v;
     }

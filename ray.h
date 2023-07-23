@@ -10,6 +10,7 @@ struct HitInfo {
     bool did_hit = false;
     Vec3 point = VEC3_ZERO;
     float distance = INFINITY;
+    bool front_face = true;
     Vec3 normal = VEC3_ZERO;
     float u, v;
     Material material;
@@ -19,7 +20,7 @@ struct Ray {
     Vec3 direction = VEC3_ZERO;
     Vec3 origin = VEC3_ZERO;
     float max_range = 50.0f;
-    HitInfo cast_to_sphere(Object* sphere) {
+    HitInfo cast_to_sphere(Object* sphere, bool calculate_uv) {
         HitInfo h;
 
         Vec3 centre = sphere->get_position();
@@ -38,6 +39,9 @@ struct Ray {
         bool inside_object = l <= 0;
         if(l == 0 and b > 0) // if ray origin is lying on sphere surface and ray is going out then there must be no hit
             return h;
+        
+        // there is no way a non transparent sphere can have a light ray inside it
+        if(!sphere->get_material().transparent and inside_object) return h;
 
         if(discriminant >= 0) {
             const float sqrt_discriminant = sqrt(discriminant);
@@ -55,25 +59,26 @@ struct Ray {
             h.point = origin + direction * distance;
             h.normal = (h.point - centre) / radius;
 
-            // calculate uv for texturing
-            Vec3 n = _rotate(h.normal, -sphere->rotation);
-            n.y *= -1; n.z *= -1; // correct normal
+            if(calculate_uv) {
+                Vec3 n = _rotate(h.normal, -sphere->get_rotation());
+                n.y *= -1; n.z *= -1; // correct normal
 
-            float theta = acos(-n.y);
-            float phi = atan2(-n.z, n.x) + M_PI;
+                float theta = acos(-n.y);
+                float phi = atan2(-n.z, n.x) + M_PI;
 
-            h.u = phi / (2*M_PI);
-            h.v = theta / M_PI;
+                h.u = phi / (2 * M_PI);
+                h.v = theta / M_PI;
+            }
 
             h.material = sphere->get_material();
             if(inside_object) {
                 h.normal = -h.normal;
-                h.material.refractive_index = RI_AIR;
+                h.front_face = false;
             }
         }
         return h;
     }
-    HitInfo cast_to_triangle(Triangle tri) {
+    HitInfo cast_to_triangle(Triangle tri, bool both_face) {
         HitInfo h;
 
         Vec3 edgeAB = tri.vert[1] - tri.vert[0];
@@ -84,6 +89,8 @@ struct Ray {
 
         bool hit_backward = false;
         if(determinant < 1e-6) {
+            if(!both_face) return h;
+
             // then ray hit the triangle from the back face
             hit_backward = true;
             normalVector *= -1;
@@ -114,9 +121,13 @@ struct Ray {
         h.point = origin + direction * (dst * 0.99999); // fix ray origin lie on triangle surface and cause dark acne
         h.normal = normalVector.normalize();
         h.distance = dst;
+
+        h.u = u;
+        h.v = v;
+
         h.material = tri.material;
         if(hit_backward) {
-            h.material.refractive_index = RI_AIR;
+            h.front_face = false;
         }
         return h;
     }
@@ -142,7 +153,7 @@ struct Ray {
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
         for(Triangle tri: mesh->tris) {
-            HitInfo h = cast_to_triangle(tri);
+            HitInfo h = cast_to_triangle(tri, mesh->get_material().transparent);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }
