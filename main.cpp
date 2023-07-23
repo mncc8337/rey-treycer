@@ -68,11 +68,10 @@ HitInfo ray_collision(Ray* ray) {
         if(!obj->visible) continue;
 
         HitInfo h;
-        Material mat = obj->get_material();
         if(obj->is_sphere())
-            h = ray->cast_to_sphere(obj->get_position(), obj->get_radius(), mat);
+            h = ray->cast_to_sphere(obj);
         else
-            h = ray->cast_to_mesh(obj->AABB_min, obj->AABB_max, obj->tris);
+            h = ray->cast_to_mesh(obj);
 
         if(h.did_hit and h.distance < closest_hit.distance) {
             closest_hit = h;
@@ -128,7 +127,7 @@ Vec3 ray_trace(int x, int y) {
             Vec3 color = h.material.color;
             if(h.material.texture.image_texture) {
                 if(h.material.texture.sphere_texture)
-                    color = h.material.texture.get_sphere_texture(h.normal);
+                    color = h.material.texture.get_sphere_texture(h.u, h.v);
             }
 
             ray_color = ray_color * color;
@@ -301,62 +300,13 @@ int main() {
     FOCAL_PLANE.visible = false;
     objects.push_back(&FOCAL_PLANE);
 
-    // cornell box
+    Material mat;
+    mat.texture.load_image("texture/earth.jpg");
+    mat.texture.sphere_texture = true;
 
-    Mesh plane = load_mesh_from("default_model/plane.obj");
-    plane.set_scale({5, 5, 5});
-
-    Material mat_red;
-    mat_red.color = RED;
-    Material mat_green;
-    mat_green.color = GREEN;
-    Material mat_white;
-    mat_white.color = WHITE;
-    Material mat_light;
-    mat_light.color = BLACK;
-    mat_light.emission_color = WHITE;
-    mat_light.emission_strength = 5.0f;
-    
-    Mesh floor = plane;
-    floor.set_position({0, -5, 0});
-    floor.set_material(mat_white);
-    objects.push_back(&floor);
-    floor.calculate_AABB();
-
-    Mesh ceil = plane;
-    ceil.set_rotation({M_PI, 0, 0});
-    ceil.set_position({0, 5, 0});
-    ceil.set_material(mat_white);
-    objects.push_back(&ceil);
-    ceil.calculate_AABB();
-
-    Mesh wall_back = plane;
-    wall_back.set_rotation({-M_PI/2, 0, 0});
-    wall_back.set_position({0, 0, 5});
-    wall_back.set_material(mat_white);
-    objects.push_back(&wall_back);
-    wall_back.calculate_AABB();
-
-    Mesh wall_red = plane;
-    wall_red.set_rotation({0, 0, -M_PI/2});
-    wall_red.set_position({-5, 0, 0});
-    wall_red.set_material(mat_red);
-    objects.push_back(&wall_red);
-    wall_red.calculate_AABB();
-
-    Mesh wall_green = plane;
-    wall_green.set_rotation({0, 0, M_PI/2});
-    wall_green.set_position({5, 0, 0});
-    wall_green.set_material(mat_green);
-    objects.push_back(&wall_green);
-    wall_green.calculate_AABB();
-    
-    Mesh light = load_mesh_from("default_model/cube.obj");
-    light.set_scale({2.5f, 0.1f, 2.5f});
-    light.set_position({0, 5, 0});
-    light.set_material(mat_light);
-    objects.push_back(&light);
-    light.calculate_AABB();
+    Sphere earth;
+    earth.set_material(mat);
+    objects.push_back(&earth);
 
     // camera setting
     camera.position.z = -10;
