@@ -106,11 +106,7 @@ Vec3 ray_trace(int x, int y) {
 
             float rand = random_val();
 
-            // diffuse like normal
-            if(!h.material.transparent)
-                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
-            // use refraction ray instead
-            else {
+            if(h.material.transparent) {
                 Vec3 refraction_direction(0, 0, 0);
                 float ri_ratio = current_refractive_index / h.material.refractive_index;
 
@@ -140,17 +136,20 @@ Vec3 ray_trace(int x, int y) {
 
                 ray.direction = refraction_direction;
             }
-            
-            Vec3 emitted_light = h.material.emission_color * h.material.emission_strength;
-            incomming_light += emitted_light * ray_color;
+            else {
+                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
+            }
             
             Vec3 color = h.material.color;
             if(h.material.texture.image_texture) {
                 if(h.material.texture.sphere_texture)
                     color = h.material.texture.get_sphere_texture(h.u, h.v);
             }
-
             ray_color = ray_color * color;
+
+            if(h.material.emit_light) {
+                incomming_light += ray_color * color * h.material.emission_strength;
+            }
         }
         else {
             incomming_light += ray_color * get_environment_light(ray.direction);

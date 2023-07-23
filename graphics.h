@@ -37,8 +37,8 @@ private:
 
     // object material property
     float color[3];
-    float emission_color[3];
     float emission_strength = 0.0f;
+    bool emit_light = false;
     float roughness = 1.0f;
     bool transparent = false;
     float refractive_index = 0;
@@ -323,15 +323,16 @@ public:
                 scale[1] = scl.y;
                 scale[2] = scl.z;
 
+                uniform_scaling = scl.x == scl.y and scl.y == scl.z;
+
                 radius = rad;
                 
                 color[0] = mat.color.x;
                 color[1] = mat.color.y;
                 color[2] = mat.color.z;
 
-                emission_color[0] = mat.emission_color.x;
-                emission_color[1] = mat.emission_color.y;
-                emission_color[2] = mat.emission_color.z;
+
+                emit_light = mat.emit_light;
                 emission_strength = mat.emission_strength;
 
                 roughness = mat.roughness;
@@ -356,13 +357,10 @@ public:
             }
             ImGui::Text("material");
             ImGui::ColorEdit3("color", color);
-            if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("inner coat color (light can only diffuse if not transparency)");
-            ImGui::ColorEdit3("emission color", emission_color);
-            ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::Checkbox("emit light", &emit_light);
+            if(emit_light)
+                ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::SliderFloat("roughness", &roughness, 0, 1);
-            if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("how rough the inner coat is");
             ImGui::Checkbox("transparent", &transparent);
             if(transparent) {
                 ImGui::Combo("refractive index", &refractive_index_current_item, refractive_index_items, 6);
@@ -422,7 +420,6 @@ public:
             Vec3 new_rot = Vec3(deg2rad(rotation[0]), deg2rad(rotation[1]), deg2rad(rotation[2]));
             Vec3 new_scl = Vec3(scale[0], scale[1], scale[2]);
             Vec3 new_color = Vec3(color[0], color[1], color[2]);
-            Vec3 new_emission_color = Vec3(emission_color[0], emission_color[1], emission_color[2]);
 
             Object* obj = selecting_object;
             Material mat = obj->get_material();
@@ -436,7 +433,7 @@ public:
                                     or obj->get_rotation() != new_rot
                                     or scale_changed
                                     or mat.color != new_color
-                                    or mat.emission_color != new_emission_color
+                                    or mat.emit_light != emit_light
                                     or mat.emission_strength != emission_strength
                                     or mat.roughness != roughness
                                     or mat.transparent != transparent
@@ -451,7 +448,7 @@ public:
                 obj->set_rotation(new_rot);
                 obj->set_position(new_pos);
                 mat.color = new_color;
-                mat.emission_color = new_emission_color;
+                mat.emit_light = emit_light;
                 mat.emission_strength = emission_strength;
                 mat.roughness = roughness;
                 mat.transparent = transparent;
