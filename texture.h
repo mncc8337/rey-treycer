@@ -16,6 +16,16 @@ public:
         return false;
     }
 };
+// a place holder
+class BaseTexture: public Texture {
+public:
+    bool is_image_texture() {
+        return false;
+    }
+    Vec3 get_texture(float u, float v) {
+        return BLACK;
+    }
+};
 class ImageTexture: public Texture {
 private:
     int image_width, image_height;

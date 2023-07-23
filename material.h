@@ -5,7 +5,6 @@
 
 struct Material {
     Vec3 color = WHITE;
-
     float roughness = 1.0f;
 
     bool emit_light = false;
@@ -17,5 +16,5 @@ struct Material {
     bool smoke = false;
     float density = 0.5f;
 
-    Texture* texture;
+    Texture* texture = new BaseTexture;
 };
