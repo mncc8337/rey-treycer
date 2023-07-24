@@ -15,5 +15,5 @@ struct Material {
     bool smoke = false;
     float density = 0.5f;
 
-    Texture* texture = new BaseTexture;
+    Texture* texture;
 };

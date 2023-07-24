@@ -49,8 +49,6 @@ Camera camera;
 
 // all object pointer in the scene
 std::vector<Object*> objects;
-bool sphere_request, mesh_request;
-std::string request_mesh_name;
 Mesh FOCAL_PLANE;
 
 Vec3 up_sky_color = Vec3(0.51f, 0.7f, 1.0f) * 1.0f;
@@ -243,77 +241,6 @@ void draw_to_window() {
     }
 }
 
-// a small object manager
-Sphere spheres[(int)1e5];
-int spheres_array_length = 0;
-std::vector<int> middle_space1;
-
-Mesh meshes[(int)1e5];
-int meshes_array_length = 0;
-std::vector<int> middle_space2;
-
-void add_sphere() {
-    Sphere sphere;
-    sphere.set_radius(1);
-    sphere.set_position(VEC3_ZERO);
-
-    int index;
-    if(middle_space1.empty()) {
-        index = spheres_array_length;
-        spheres_array_length++;
-    }
-    else {
-        index = middle_space1.front();
-        middle_space1.erase(middle_space1.begin());
-    }
-    spheres[index] = sphere;
-    objects.push_back(spheres + index);
-    selecting_object = spheres + index;
-}
-void add_mesh() {
-    Mesh mesh = load_mesh_from(request_mesh_name);
-
-    int index;
-    if(middle_space2.empty()) {
-        index = meshes_array_length;
-        meshes_array_length++;
-    }
-    else {
-        index = middle_space2.front();
-        middle_space2.erase(middle_space2.begin());
-    }
-    meshes[index] = mesh;
-    objects.push_back(meshes + index);
-    selecting_object = meshes + index;
-}
-void remove_object(Object* obj) {
-    selecting_object = nullptr;
-    if(obj == &FOCAL_PLANE) return;
-    for(int i = 0; i < (int)objects.size(); i++)
-        if(objects[i] == obj) {
-            objects.erase(objects.begin() + i);
-            break;
-        }
-
-    // find the removed object and update middle space vector
-    if(obj->is_sphere()) {
-        for(int i = 0; i < spheres_array_length; i++) {
-            if(spheres + i == obj) {
-                middle_space1.push_back(i);
-                return;
-            }
-        }
-    }
-    else {
-        for(int i = 0; i < meshes_array_length; i++) {
-            if(meshes + i == obj) {
-                middle_space2.push_back(i);
-                return;
-            }
-        }
-    }
-}
-
 Vec3 normal_map(Info h) {
     return (h.normal + Vec3(1, 1, 1)) / 2;
 }
@@ -321,12 +248,14 @@ Vec3 normal_map(Info h) {
 float delta_time = 0;
 int main() {
     Material FOCAL_PLANE_MAT;
+    FOCAL_PLANE_MAT.texture = new BaseTexture;
     FOCAL_PLANE_MAT.color = Vec3(0.18, 0.5, 1.0);
     FOCAL_PLANE_MAT.transparent = true;
     FOCAL_PLANE_MAT.refractive_index = RI_AIR;
 
     // spawn the focal plane
     Mesh FOCAL_PLANE = load_mesh_from("default_model/plane.obj");
+    FOCAL_PLANE.update_material(); // for some reason this cannot called automatically
     FOCAL_PLANE.visible = false;
     FOCAL_PLANE.set_material(FOCAL_PLANE_MAT);
     objects.push_back(&FOCAL_PLANE);
@@ -339,6 +268,7 @@ int main() {
     cube_mat.texture = &dice_tex;
 
     Mesh mesh = load_mesh_from("default_model/cube-uv.obj");
+    mesh.update_material();
     mesh.set_material(cube_mat);
     objects.push_back(&mesh);
 
@@ -368,16 +298,6 @@ int main() {
     while(running) {
         auto start = std::chrono::system_clock::now();
 
-        // force render
-        if(sphere_request or mesh_request)
-            stationary_frames_count = 0;
-        if(sphere_request)
-            add_sphere();
-        if(mesh_request)
-            add_mesh();
-        sphere_request = false;
-        mesh_request = false;
-
         while(SDL_PollEvent(&(sdl.event))) {
             SDL_GetMouseState(&mouse_pos_x, &mouse_pos_y);
             sdl.process_gui_event();
@@ -390,8 +310,6 @@ int main() {
                 SDL_GetWindowSize(sdl.window, &w, &h);
                 mouse_pos_x *= WIDTH / (float)w;
                 mouse_pos_y *= HEIGHT / (float)h;
-                Vec3 COLOR = screen_color[mouse_pos_x][mouse_pos_y];
-                std::cout << COLOR.x << ' ' << COLOR.y << ' ' << COLOR.z << '\n';
 
                 Ray ray = camera.ray(mouse_pos_x, mouse_pos_y);
                 HitInfo hit = ray_collision(&ray);
@@ -476,18 +394,28 @@ int main() {
         float old_max_range = camera.max_range;
         float old_focus_distance = camera.focus_distance;
 
+        int objs_state = 0;
         sdl.gui(
             &screen_color,
             &camera_control,
             &lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay, (int)threads.size(),
             &WIDTH, &HEIGHT,
-            &objects, selecting_object,
-            &sphere_request, &mesh_request, &request_mesh_name,
-            &remove_object,
+            &objects, selecting_object, &objs_state,
             &camera,
             &up_sky_color, &down_sky_color,
             &running
         );
+
+        switch(objs_state) {
+            case 1: // make new
+                selecting_object = objects.back();
+                stationary_frames_count = 0;
+                break;
+            case 2: // delete
+                selecting_object = nullptr;
+                stationary_frames_count = 0;
+                break;
+        }
 
         if(old_FOV != camera.FOV
                 or old_max_range != camera.max_range

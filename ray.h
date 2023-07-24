@@ -164,6 +164,7 @@ struct Ray {
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }
+
         return closest;
     }
 };

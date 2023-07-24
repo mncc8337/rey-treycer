@@ -134,9 +134,7 @@ public:
              bool* camera_control,
              bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int running_thread_count,
              int* width, int* height,
-             std::vector<Object*>* oc, Object* selecting_object,
-             bool* make_sphere_request, bool* make_mesh_request, std::string* request_mesh_name,
-             void (*remove_object_func)(Object*),
+             std::vector<Object*>* oc, Object* selecting_object, int* objects_state,
              Camera* camera,
              Vec3* up_sky_c, Vec3* down_sky_c,
              bool* running) {
@@ -267,24 +265,53 @@ public:
 
         ImGui::Begin("object property");
         if(selecting_object == nullptr) {
+            bool new_obj = false;
             if(ImGui::Button("add sphere")) {
-                *make_sphere_request = true;
+                Material mat;
+                mat.texture = new BaseTexture;
+
+                Sphere* sphere = new Sphere;
+                sphere->set_material(mat);
+                oc->push_back(sphere);
+                new_obj = true;
             }
             ImGui::SameLine();
             if(ImGui::Button("add plane")) {
-                *make_mesh_request = true;
-                *request_mesh_name = "default_model/plane.obj";
+                Material mat;
+                mat.texture = new BaseTexture;
+
+                Mesh* mesh = new Mesh;
+                *mesh = load_mesh_from("default_model/plane.obj");
+                mesh->update_material();
+                mesh->set_material(mat);
+                oc->push_back(mesh);
+                new_obj = true;
             }
             ImGui::SameLine();
             if(ImGui::Button("add cube")) {
-                *make_mesh_request = true;
-                *request_mesh_name = "default_model/cube.obj";
+                Material mat;
+                mat.texture = new BaseTexture;
+
+                Mesh* mesh = new Mesh;
+                *mesh = load_mesh_from("default_model/cube.obj");
+                mesh->update_material();
+                mesh->set_material(mat);
+                oc->push_back(mesh);
+                new_obj = true;
             }
             ImGui::SameLine();
             if(ImGui::Button("add dodecahedron")) {
-                *make_mesh_request = true;
-                *request_mesh_name = "default_model/dodecahedron.obj";
+                Material mat;
+                mat.texture = new BaseTexture;
+
+                Mesh* mesh = new Mesh;
+                *mesh = load_mesh_from("default_model/dodecahedron.obj");
+                mesh->update_material();
+                mesh->set_material(mat);
+                oc->push_back(mesh);
+                new_obj = true;
             }
+            *objects_state = new_obj;
         }
         else if(selecting_object == focal_plane) {
             ImGui::Text("selecting focal plane");
@@ -299,6 +326,8 @@ public:
 
             // if select a new object
             if(prev_object != selecting_object) {
+                prev_object = selecting_object;
+
                 Vec3 pos = selecting_object->get_position();
                 Vec3 rot = selecting_object->get_rotation();
                 Vec3 scl = selecting_object->get_scale();
@@ -337,7 +366,6 @@ public:
                 smoke = mat.smoke;
                 density = mat.density;
             }
-            prev_object = selecting_object;
 
             ImGui::Text("transform");
             ImGui::DragFloat3("position", position, 0.1f);
@@ -454,9 +482,12 @@ public:
                 *frame_num = 0;
             }
             if(ImGui::Button("delete object")) {
-                remove_object_func(selecting_object);
-                selecting_object = nullptr;
+                for(int i = 0; i < (int)oc->size(); i++)
+                    if((*oc)[i] == selecting_object)
+                        oc->erase(oc->begin() + i);
+
                 *frame_num = 0;
+                *objects_state = 2;
             }
         }
         ImGui::End();

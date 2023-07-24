@@ -161,6 +161,5 @@ inline Mesh load_mesh_from(std::string filename = "") {
     }
 
     out.calculate_AABB();
-    out.update_material();
     return out;
 }

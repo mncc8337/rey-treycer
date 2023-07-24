@@ -29,7 +29,7 @@ public:
     bool has_texture() {
         return false;
     }
-    Vec3 get_texture(float u, float v) {
+    Vec3 get_texture(Info h) {
         return BLACK;
     }
 };
