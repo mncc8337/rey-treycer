@@ -1,15 +1,12 @@
-# rey-treycer
+# reytreycer
 
-A simple ray tracer for learning purpose
-## Dependencies
+a simple ray tracer for learning purpose
+## build dependencies
 * [SDL2](https://www.libsdl.org/)
-* [Dear ImGui](https://github.com/ocornut/imgui)
-* [stb](https://github.com/nothings/stb)
+* GNU Make
 ## build
-install [SDL2](https://www.libsdl.org/)<br>
-clone [Dear ImGui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb) to the repo folder<br>
-then run `make`
-## Gallery
+just run `make`
+## gallery
 <p float="left">
     <img src="res/scene-5.bmp" width=47%/>
     <img src="res/defocus-effect-2.bmp" width=47%/>

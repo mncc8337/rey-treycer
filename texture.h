@@ -8,15 +8,15 @@
 #include <functional>
 #include <iostream>
 
-// make a new struct because i cant include HitInfo (in ray.h) here
-struct Info {
+struct SurfaceInfo {
     float u, v;
     Vec3 normal = VEC3_ZERO;
+    Vec3 object_rotation = VEC3_ZERO;
 };
 
 class Texture {
 public:
-    virtual Vec3 get_texture(Info h) {
+    virtual Vec3 get_texture(SurfaceInfo h) {
         return VEC3_ZERO;
     };
     virtual bool has_texture() {
@@ -29,7 +29,7 @@ public:
     bool has_texture() {
         return false;
     }
-    Vec3 get_texture(Info h) {
+    Vec3 get_texture(SurfaceInfo h) {
         return BLACK;
     }
 };
@@ -45,7 +45,7 @@ public:
     void load_image(const char* chr) {
         pixel_data = stbi_load(chr, &image_width, &image_height, &channels, 0);
     }
-    Vec3 get_texture(Info h) {
+    Vec3 get_texture(SurfaceInfo h) {
         int x = h.u * (image_width - 1);
         int y = h.v * (image_height - 1);
 
@@ -59,15 +59,15 @@ public:
 };
 class ProceduralTexture: public Texture {
 private:
-    std::function<Vec3(Info)> func;
+    std::function<Vec3(SurfaceInfo)> func;
 public:
     bool has_texture() {
         return true;
     }
-    void set_function(std::function<Vec3(Info)> f) {
+    void set_function(std::function<Vec3(SurfaceInfo)> f) {
         func = f;
     }
-    Vec3 get_texture(Info h) {
+    Vec3 get_texture(SurfaceInfo h) {
         return func(h);
     }
 };

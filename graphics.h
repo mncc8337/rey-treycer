@@ -7,8 +7,8 @@
 #include "transformation.h"
 
 #include "imgui/imgui.h"
-#include "imgui/backends/imgui_impl_sdl2.h"
-#include "imgui/backends/imgui_impl_sdlrenderer2.h"
+#include "imgui/imgui_impl_sdl2.h"
+#include "imgui/imgui_impl_sdlrenderer2.h"
 
 #include <vector>
 #include <iostream>
@@ -486,7 +486,6 @@ public:
                     if((*oc)[i] == selecting_object)
                         oc->erase(oc->begin() + i);
 
-                *frame_num = 0;
                 *objects_state = 2;
             }
         }
