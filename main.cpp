@@ -141,8 +141,10 @@ Vec3 ray_trace(int x, int y) {
 
             Vec3 color = h.material.color;
 
-            Info inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
             if(h.material.texture->has_texture()) {
+                SurfaceInfo inf;
+                inf.u = h.u; inf.v = h.v; inf.normal = h.normal; inf.object_rotation = h.object->get_rotation();
+
                 color = h.material.texture->get_texture(inf);
             }
             ray_color = ray_color * color;
@@ -241,8 +243,12 @@ void draw_to_window() {
     }
 }
 
-Vec3 normal_map(Info h) {
+Vec3 normal_map(SurfaceInfo h) {
     return (h.normal + Vec3(1, 1, 1)) / 2;
+}
+Vec3 checker(SurfaceInfo h) {
+    h.normal = _rotate(h.normal, -h.object_rotation);
+    return Vec3(0, 1, 0) * (sin(10 * h.normal.x) * sin(10 * h.normal.y) * sin(10 * h.normal.z) > 0);
 }
 
 float delta_time = 0;
@@ -259,30 +265,6 @@ int main() {
     FOCAL_PLANE.visible = false;
     FOCAL_PLANE.set_material(FOCAL_PLANE_MAT);
     objects.push_back(&FOCAL_PLANE);
-
-    // dice
-    ImageTexture dice_tex;
-    dice_tex.load_image("texture/dice.png");
-
-    Material cube_mat;
-    cube_mat.texture = &dice_tex;
-
-    Mesh mesh = load_mesh_from("default_model/cube-uv.obj");
-    mesh.update_material();
-    mesh.set_material(cube_mat);
-    objects.push_back(&mesh);
-
-    // texturing based on normals
-    ProceduralTexture normal_map_tex;
-    normal_map_tex.set_function(&normal_map);
-
-    Material sphere_mat;
-    sphere_mat.texture = &normal_map_tex;
-
-    Sphere sphere;
-    sphere.set_material(sphere_mat);
-    sphere.set_position({0, 5, 0});
-    objects.push_back(&sphere);
 
     // camera setting
     camera.position.z = 10;
