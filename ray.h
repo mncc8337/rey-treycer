@@ -42,7 +42,9 @@ struct Ray {
             return h;
         
         // there is no way a non transparent sphere can have a light ray inside it
-        if(!sphere->get_material().transparent and inside_object) return h;
+        Material mat = sphere->get_material();
+        bool transparent = mat.transparent or mat.smoke;
+        if(!transparent and inside_object) return h;
 
         if(discriminant >= 0) {
             const float sqrt_discriminant = sqrt(discriminant);
@@ -160,7 +162,9 @@ struct Ray {
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
         // find closest hit
         for(int i = 0; i < (int)mesh->tris.size(); i++) {
-            HitInfo h = cast_to_triangle(&(mesh->tris[i]), mesh->get_material().transparent, calculate_uv);
+            Material mat = mesh->get_material();
+            bool transparent = mat.transparent or mat.smoke;
+            HitInfo h = cast_to_triangle(&(mesh->tris[i]), transparent, calculate_uv);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;
         }

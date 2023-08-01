@@ -15,7 +15,7 @@
 // using json = nlohmann::json;
 
 int WIDTH = 320;
-int HEIGHT = 240;
+int HEIGHT = 180;
 
 int thread_width = WIDTH / column_threads;
 int thread_height = HEIGHT / row_threads;
@@ -92,6 +92,10 @@ Vec3 ray_trace(int x, int y) {
     float current_refractive_index = environment_refractive_index;
     std::vector<float> ri_difference_record;
 
+    float current_smoke_density = 0;
+    std::vector<float> density_difference_record;
+    std::vector<Vec3> smoke_colors;
+
     Ray ray = camera.ray(x, y);
 
     for(int i = 0; i <= camera.max_ray_bounce_count; i++) {
@@ -104,6 +108,18 @@ Vec3 ray_trace(int x, int y) {
             Vec3 specular_direction = reflection(h.normal, old_direction);
 
             float rand = random_val();
+
+            if(current_smoke_density > 0.0f) {
+                float distance_to_hit_particle = -log(rand) / current_smoke_density;
+
+                // if hit the particle
+                if(distance_to_hit_particle < h.distance) {
+                    ray.origin += ray.direction * distance_to_hit_particle;
+                    ray.direction = random_direction();
+                    ray_color = ray_color * smoke_colors.back();
+                    continue;
+                }
+            }
 
             if(h.material.transparent) {
                 Vec3 refraction_direction(0, 0, 0);
@@ -134,6 +150,26 @@ Vec3 ray_trace(int x, int y) {
                 }
 
                 ray.direction = refraction_direction;
+            }
+            else if(h.material.smoke) {
+                float density_difference = h.material.density - current_smoke_density;
+                if(h.front_face) {
+                    current_smoke_density += density_difference;
+                    density_difference_record.push_back(density_difference);
+                    smoke_colors.push_back(h.material.color);
+                }
+                else {
+                    if(density_difference_record.size() == 0) { // if camera is inside object
+                        current_smoke_density = 0;
+                    }
+                    else {
+                        current_smoke_density -= density_difference_record.back();
+                        density_difference_record.pop_back();
+                        smoke_colors.pop_back();
+                    }
+                }
+                // ignore the run because there is no bounce
+                i++; continue;
             }
             else {
                 ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);

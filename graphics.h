@@ -409,7 +409,7 @@ public:
             }
             ImGui::Checkbox("smoke", &smoke);
             if(smoke)
-                ImGui::DragFloat("smoke density", &density, 0.001f, 0.00001f, 1.0f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::DragFloat("smoke density", &density, 0.001f, 0.00001f, INFINITY, "%.5f", ImGuiSliderFlags_AlwaysClamp);
 
             if(uniform_scaling) {
                 int difference_count = (scale[0] != scale[1]) + (scale[1] != scale[2]) + (scale[0] != scale[2]);
