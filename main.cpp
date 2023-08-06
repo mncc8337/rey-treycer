@@ -23,9 +23,7 @@ std::vector<std::thread> threads;
 
 bool running = true;
 int stationary_frames_count = 0;
-bool camera_moving = false;
 double delay = 0;
-bool keyhold[12];
 bool camera_control = true;
 
 float environment_refractive_index = RI_AIR;
@@ -41,6 +39,7 @@ Object* selecting_object;
 bool lazy_ray_trace = false;
 
 SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
+const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 std::vector<std::vector<Vec3>> screen_color(MAX_WIDTH, v_height);
 std::vector<std::vector<Vec3>> buffer = screen_color;
@@ -336,76 +335,38 @@ int main() {
                 }
                 else selecting_object = nullptr;
             }
-
-            if(camera_control) {
-                bool keydown = sdl.event.type == SDL_KEYDOWN;
-                switch(sdl.event.key.keysym.sym) {
-                    case SDLK_UP:
-                        keyhold[0] = keydown;
-                        break;
-                    case SDLK_DOWN:
-                        keyhold[1] = keydown;
-                        break;
-                    case SDLK_LEFT:
-                        keyhold[2] = keydown;
-                        break;
-                    case SDLK_RIGHT:
-                        keyhold[3] = keydown;
-                        break;
-                    case SDLK_w:
-                        keyhold[4] = keydown;
-                        break;
-                    case SDLK_s:
-                        keyhold[5] = keydown;
-                        break;
-                    case SDLK_a:
-                        keyhold[6] = keydown;
-                        break;
-                    case SDLK_d:
-                        keyhold[7] = keydown;
-                        break;
-                    case SDLK_x:
-                        keyhold[8] = keydown;
-                        break;
-                    case SDLK_z:
-                        keyhold[9] = keydown;
-                        break;
-                    case SDLK_LSHIFT:
-                        keyhold[10] = keydown;
-                        break;
-                    case SDLK_LCTRL:
-                        keyhold[11] = keydown;
-                        break;
-                }
-            }
         }
 
         // handling keyboard signal
         if(camera_control) {
             float speed = 5.0f * delta_time;
             float rot_speed = 0.8f * delta_time;
-            if(keyhold[10]) {
+
+            if(keys[SDL_SCANCODE_LSHIFT]) {
                 speed *= 2;
             }
-            if(keyhold[11]) {
+            if(keys[SDL_SCANCODE_LCTRL]) {
                 speed /= 4;
                 rot_speed /= 4;
             }
-            bool camera_changed = false;
-            for(int i = 0; i < 10; i++) camera_changed = camera_changed or keyhold[i];
-            if(keyhold[2]) camera.pan(rot_speed);
-            if(keyhold[3]) camera.pan(-rot_speed);
-            if(keyhold[0]) camera.tilt(rot_speed);
-            if(keyhold[1]) camera.tilt(-rot_speed);
-            if(keyhold[4]) camera.move_foward(speed);
-            if(keyhold[5]) camera.move_foward(-speed);
-            if(keyhold[6]) camera.move_right(-speed);
-            if(keyhold[7]) camera.move_right(speed);
-            if(keyhold[8]) camera.position.y += speed;
-            if(keyhold[9]) camera.position.y -= speed;
-            camera_moving = camera_changed;
 
-            if(camera_moving) stationary_frames_count = 0;
+            Vec3 cam_pos = camera.position;
+            float cam_pan = camera.panned_angle;
+            float cam_tilt = camera.tilted_angle;
+
+            if(keys[SDL_SCANCODE_LEFT]) camera.pan(rot_speed);
+            if(keys[SDL_SCANCODE_RIGHT]) camera.pan(-rot_speed);
+            if(keys[SDL_SCANCODE_UP]) camera.tilt(rot_speed);
+            if(keys[SDL_SCANCODE_DOWN]) camera.tilt(-rot_speed);
+            if(keys[SDL_SCANCODE_W]) camera.move_foward(speed);
+            if(keys[SDL_SCANCODE_S]) camera.move_foward(-speed);
+            if(keys[SDL_SCANCODE_A]) camera.move_right(-speed);
+            if(keys[SDL_SCANCODE_D]) camera.move_right(speed);
+            if(keys[SDL_SCANCODE_X]) camera.position.y += speed;
+            if(keys[SDL_SCANCODE_Z]) camera.position.y -= speed;
+
+            if(camera.position != cam_pos or camera.panned_angle != cam_pan or camera.tilted_angle != cam_tilt)
+                stationary_frames_count = 0;
         }
 
         float old_FOV = camera.FOV;

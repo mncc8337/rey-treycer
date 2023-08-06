@@ -180,7 +180,7 @@ public:
 
             ImGui::Checkbox("camera control", camera_control);
             if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("turn on camera control\n WASD: position\n right/left/up/down: angle");
+                ImGui::SetTooltip("turn on camera control\n WASD: position\n XZ: up/down\n right/left/up/down: angle");
             ImGui::Checkbox("lazy ray tracing", lazy_ray_trace);
             if(ImGui::IsItemHovered())
                 ImGui::SetTooltip("increase performance but decrease image quality");
