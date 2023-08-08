@@ -121,7 +121,7 @@ struct Ray {
         if(w < 0) return h;
 
         h.did_hit = true;
-        h.point = origin + direction * (dst * 0.99999); // fix ray origin lie on triangle surface and cause dark acne
+        h.point = origin + direction * dst;
         h.normal = normalVector.normalize();
         h.distance = dst;
 
