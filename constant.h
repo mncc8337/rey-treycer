@@ -5,11 +5,6 @@
 const int MAX_WIDTH = 2000;
 const int MAX_HEIGHT = 2000;
 
-// how many threads in a row
-const int row_threads = 2;
-// how many threads in a column
-const int column_threads = 2;
-
 const Vec3 BLACK(0, 0, 0);
 const Vec3 WHITE(1, 1, 1);
 const Vec3 RED(1, 0, 0);

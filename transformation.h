@@ -1,5 +1,4 @@
 #pragma once
-#include "vec3.h"
 #include "constant.h"
 
 inline Vec3 _rotate(Vec3 v, float x, float y, float z) {

@@ -1,10 +1,6 @@
 #pragma once
-#include "vec3.h"
-#include "constant.h"
-#include "material.h"
 #include "objects.h"
 #include "helper.h"
-#include "transformation.h"
 
 struct HitInfo {
     bool did_hit = false;

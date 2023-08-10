@@ -1,5 +1,4 @@
 #pragma once
-#include "vec3.h"
 #include "texture.h"
 
 struct Material {

@@ -3,9 +3,10 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include "vec3.h"
-#include "constant.h"
 #include "objects.h"
+
+#include "stb/stb_image.h"
+#include "stb/stb_image_write.h"
 
 inline char* CHAR(std::string str) {
     char* chr = const_cast<char*>(str.c_str());
@@ -16,6 +17,15 @@ inline float deg2rad(float a) {
 }
 inline float rad2deg(float a) {
     return a / M_PI * 180;
+}
+// return a sorted array of divider of a
+inline std::vector<int> get_dividers(int a) {
+    std::vector<int> dividers;
+    for(int i = 1; i <= a / 2; i++)
+        if(a % i == 0) dividers.push_back(i);
+    dividers.push_back(a);
+
+    return dividers;
 }
 
 enum TONEMAPPING {
@@ -31,6 +41,30 @@ inline Vec3 tonemap(Vec3 v, int style) {
 }
 inline Vec3 gamma_correct(Vec3 color, float t) {
     return Vec3(pow(color.x, t), pow(color.y, t), pow(color.z, t));
+}
+inline void save_to_image(char* name, std::vector<std::vector<Vec3>>* colors, int tonemapping_method, float gamma) {
+    int WIDTH = colors->size();
+    int HEIGHT = (*colors)[0].size();
+
+    unsigned char data[WIDTH * HEIGHT * 3];
+
+    for(int x = 0; x < WIDTH; x++)
+        for(int y = 0; y < HEIGHT; y++) {
+            Vec3 color = (*colors)[x][y];
+            color = tonemap(color, tonemapping_method);
+            color = gamma_correct(color, gamma);
+            color *= 255;
+
+            int r = color.x;
+            int g = color.y;
+            int b = color.z;
+
+            unsigned char* pixel = data + (y * WIDTH + x) * 3;
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
+        }
+    stbi_write_png(name, WIDTH, HEIGHT, 3, data, WIDTH * 3);
 }
 
 inline float random_val(double from = 0, double to = 1) {
@@ -79,10 +113,10 @@ inline float reflectance(float cosine, float ri) {
     float r0 = (1-ri) / (1+ri);
     r0 *= r0;
     float icos = 1 - cosine;
-    return r0 + (1-r0) * icos * icos * icos * icos * icos;
+    return r0 + (1 - r0) * icos * icos * icos * icos * icos;
 }
 
-inline Mesh load_mesh_from(std::string filename = "") {
+inline Mesh load_mesh_from(std::string filename) {
     Mesh out;
 
     std::ifstream f(filename);

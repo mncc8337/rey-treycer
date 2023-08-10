@@ -1,289 +1,48 @@
 #include <SDL2/SDL_events.h>
-#include <thread>
-
-// debug
-#include <iostream>
-#include <chrono>
-
-#include "camera.h"
-#include "constant.h"
+#include "rey-treycer.h"
 #include "graphics.h"
-#include "objects.h"
-#include "texture.h"
-
-// #include "nlohmann/json.hpp"
-// using json = nlohmann::json;
 
 int WIDTH = 320;
 int HEIGHT = 180;
 
-int thread_width = WIDTH / column_threads;
-int thread_height = HEIGHT / row_threads;
-std::vector<std::thread> threads;
+ReyTreycer rt(WIDTH, HEIGHT, 4);
+SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
+const Uint8 *keys = SDL_GetKeyboardState(NULL);
+
+Camera* camera = &rt.camera;
 
 bool running = true;
-int stationary_frames_count = 0;
 double delay = 0;
 bool camera_control = true;
-
-float environment_refractive_index = RI_AIR;
-
-int render_frame_count = 3;
 
 int mouse_pos_x;
 int mouse_pos_y;
 
 Object* selecting_object;
 
-// ray trace pixel like a checker board per frame
-bool lazy_ray_trace = false;
-
-SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
-const Uint8 *keys = SDL_GetKeyboardState(NULL);
-
 std::vector<std::vector<Vec3>> screen_color(MAX_WIDTH, v_height);
-std::vector<std::vector<Vec3>> buffer = screen_color;
 
-Camera camera;
-
-// all object pointer in the scene
-std::vector<Object*> objects;
 Mesh FOCAL_PLANE;
 
-Vec3 up_sky_color = Vec3(0.51f, 0.7f, 1.0f) * 1.0f;
-Vec3 down_sky_color = WHITE;
-Vec3 get_environment_light(Vec3 dir) {
-    // dir must be normalized
-    float level = (dir.y + 1) / 2;
-    return lerp(down_sky_color, up_sky_color, level);
-}
-
-// get closest hit of a ray
-HitInfo ray_collision(Ray* ray) {
-    HitInfo closest_hit;
-    closest_hit.distance = INFINITY;
-
-    // find the first intersect point in all sphere
-    for(Object* obj: objects) {
-        if(!obj->visible) continue;
-
-        // only calculate uv if object has textures
-        bool calculate_uv = obj->get_material().texture->has_texture();
-
-        HitInfo h;
-        if(obj->is_sphere())
-            h = ray->cast_to_sphere(obj, calculate_uv);
-        else
-            h = ray->cast_to_mesh(obj, calculate_uv);
-
-        if(h.did_hit and h.distance < closest_hit.distance) {
-            closest_hit = h;
-            closest_hit.object = obj;
-        }
-    }
-
-    return closest_hit;
-}
-Vec3 ray_trace(int x, int y) {
-    Vec3 ray_color = WHITE;
-    Vec3 incomming_light = BLACK;
-
-    float current_refractive_index = environment_refractive_index;
-    std::vector<float> ri_difference_record;
-
-    float current_smoke_density = 0;
-    std::vector<float> density_difference_record;
-    std::vector<Vec3> smoke_colors;
-
-    Ray ray = camera.ray(x, y);
-
-    for(int i = 0; i <= camera.max_ray_bounce_count; i++) {
-        HitInfo h = ray_collision(&ray);
-
-        if(h.did_hit) {
-            Vec3 old_direction = ray.direction;
-            ray.origin = h.point;
-            Vec3 diffuse_direction = (h.normal + random_direction()).normalize();
-            Vec3 specular_direction = reflection(h.normal, old_direction);
-
-            float rand = random_val();
-
-            if(current_smoke_density > 0.0f) {
-                float distance_to_hit_particle = -log(rand) / current_smoke_density;
-
-                // if hit the particle
-                if(distance_to_hit_particle < h.distance) {
-                    ray.origin += ray.direction * distance_to_hit_particle;
-                    ray.direction = random_direction();
-                    ray_color = ray_color * smoke_colors.back();
-                    continue;
-                }
-            }
-
-            if(h.material.transparent) {
-                Vec3 refraction_direction(0, 0, 0);
-                float ri_ratio = current_refractive_index / h.material.refractive_index;
-
-                float cos_theta = -ray.direction.dot(h.normal);
-                float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-
-                bool cannot_refract = ri_ratio * sin_theta > 1.0;
-                if((cannot_refract or reflectance(cos_theta, ri_ratio) > rand) and ri_ratio != 1.0f)
-                    refraction_direction = specular_direction;
-                else {
-                    refraction_direction = refraction(h.normal, old_direction, ri_ratio);
-                    float ri_difference = h.material.refractive_index - current_refractive_index;
-                    if(h.front_face) {
-                        current_refractive_index += ri_difference;
-                        ri_difference_record.push_back(ri_difference);
-                    }
-                    else {
-                        if(ri_difference_record.size() == 0) { // if camera is inside object
-                            current_refractive_index = RI_AIR;
-                        }
-                        else {
-                            current_refractive_index -= ri_difference_record.back();
-                            ri_difference_record.pop_back();
-                        }
-                    }
-                }
-
-                ray.direction = refraction_direction;
-            }
-            else if(h.material.smoke) {
-                float density_difference = h.material.density - current_smoke_density;
-                if(h.front_face) {
-                    current_smoke_density += density_difference;
-                    density_difference_record.push_back(density_difference);
-                    smoke_colors.push_back(h.material.color);
-                }
-                else {
-                    if(density_difference_record.size() == 0) { // if camera is inside object
-                        current_smoke_density = 0;
-                    }
-                    else {
-                        current_smoke_density -= density_difference_record.back();
-                        density_difference_record.pop_back();
-                        smoke_colors.pop_back();
-                    }
-                }
-                // ignore the run because there is no bounce
-                i++; continue;
-            }
-            else {
-                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
-            }
-
-            Vec3 color = h.material.color;
-
-            if(h.material.texture->has_texture()) {
-                SurfaceInfo inf;
-                inf.u = h.u; inf.v = h.v; inf.normal = h.normal; inf.object_rotation = h.object->get_rotation();
-
-                color = h.material.texture->get_texture(inf);
-            }
-            ray_color = ray_color * color;
-
-            if(h.material.emit_light) {
-                incomming_light += ray_color * color * h.material.emission_strength;
-            }
-        }
-        else {
-            incomming_light += ray_color * get_environment_light(ray.direction);
-            break;
-        }
-    }
-    return incomming_light;
-}
-
-void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
-    for(int x = from_x; x <= to_x; x++)
-        for(int y = from_y; y <= to_y; y++) {
-            Vec3 draw_color = BLACK;
-
-            int lazy_ray_trace_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
-            // lazy ray trace
-            if(lazy_ray_trace and lazy_ray_trace_condition % 2 == stationary_frames_count % 2) {
-                // do nothing
-            }
-            else {
-                // make more ray per pixel for more accurate color in one frame
-                // but decrease performance
-                for(int k = 1; k <= camera.ray_per_pixel; k++) {
-                    draw_color += ray_trace(x, y);
-                }
-                draw_color /= camera.ray_per_pixel;
-
-                // check if color is NaN or not (idk why this happended lol), fix dark acne
-                if(draw_color.x != draw_color.x or draw_color.y != draw_color.y or draw_color.z != draw_color.z)
-                    continue;
-
-                // progressive rendering
-                float w = 1.0f / (stationary_frames_count + 1);
-                if(screen_color[x][y] != BLACK)
-                    draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
-                buffer[x][y] = draw_color;
-            }
-        }
-}
-void draw_frame() {
-    auto start = std::chrono::system_clock::now();
-
-    // start all draw thread
-    for(int w = 0; w < column_threads; w++)
-        for(int h = 0; h < row_threads; h++) {
-            int draw_from_x = w * thread_width;
-            int draw_to_x = (w + 1) * thread_width - 1;
-            int draw_from_y = h * thread_height;
-            int draw_to_y = (h + 1) * thread_height - 1;
-            threads.push_back(std::thread(drawing_in_rectangle, draw_from_x, draw_to_x, draw_from_y, draw_to_y));
-        }
-    // wait till all threads are finished
-    for(int i = 0; i < (int)threads.size(); i++)
-        threads[i].join();
-    threads.clear();
-
-    // copy buffer to screen
-    screen_color = buffer;
-
-    auto end = std::chrono::system_clock::now();
-
-    std::chrono::duration<double> elapsed = end - start;
-    delay = elapsed.count() * 1000;
-    
-    stationary_frames_count++;
-}
-
 void update_camera() {
-    float tilted_a = camera.tilted_angle;
-    float panned_a = camera.panned_angle;
-    camera.reset_rotation();
-    camera.WIDTH = WIDTH;
-    camera.HEIGHT = HEIGHT;
-    camera.init();
+    rt.update_size(WIDTH, HEIGHT);
 
-    camera.tilt(tilted_a);
-    camera.pan(panned_a);
+    float tilted_a = camera->tilted_angle;
+    float panned_a = camera->panned_angle;
+    camera->init();
+    camera->tilt(tilted_a);
+    camera->pan(panned_a);
 
-    thread_width = WIDTH / column_threads;
-    thread_height = HEIGHT / row_threads;
-
-    stationary_frames_count = 0;
+    rt.frame_count = 0;
 }
 
 void draw_to_window() {
     while(running) {
-        if(stationary_frames_count < render_frame_count)
-            draw_frame();
+        if(rt.frame_count < rt.render_frame_count) {
+            rt.draw_frame();
+            screen_color = rt.screen_color;
+        }
     }
-}
-
-Vec3 normal_map(SurfaceInfo h) {
-    return (h.normal + Vec3(1, 1, 1)) / 2;
-}
-Vec3 checker(SurfaceInfo h) {
-    h.normal = _rotate(h.normal, -h.object_rotation);
-    return Vec3(0, 1, 0) * (sin(10 * h.normal.x) * sin(10 * h.normal.y) * sin(10 * h.normal.z) > 0);
 }
 
 float delta_time = 0;
@@ -296,19 +55,86 @@ int main() {
 
     // spawn the focal plane
     Mesh FOCAL_PLANE = load_mesh_from("default_model/plane.obj");
-    FOCAL_PLANE.update_material(); // for some reason this cannot called automatically
+    FOCAL_PLANE.update_material();
     FOCAL_PLANE.visible = false;
     FOCAL_PLANE.set_material(FOCAL_PLANE_MAT);
-    objects.push_back(&FOCAL_PLANE);
+    rt.add_object(&FOCAL_PLANE);
+
+    // cornell box
+
+    Mesh plane = load_mesh_from("default_model/plane.obj");
+    plane.set_scale({5, 5, 5});
+
+    Material mat_red;
+    mat_red.color = RED;
+    mat_red.texture = new BaseTexture;
+    Material mat_green;
+    mat_green.color = GREEN;
+    mat_green.texture = new BaseTexture;
+    Material mat_white;
+    mat_white.color = WHITE;
+    mat_white.texture = new BaseTexture;
+    Material mat_light;
+    mat_light.color = WHITE;
+    mat_light.emit_light = true;
+    mat_light.emission_strength = 5.0f;
+    mat_light.texture = new BaseTexture;
+
+    Mesh floor = plane;
+    floor.set_position({0, -5, 0});
+    floor.set_material(mat_white);
+    floor.update_material();
+    rt.add_object(&floor);
+    floor.calculate_AABB();
+
+    Mesh ceil = plane;
+    ceil.set_rotation({M_PI, 0, 0});
+    ceil.set_position({0, 5, 0});
+    ceil.set_material(mat_white);
+    ceil.update_material();
+    rt.add_object(&ceil);
+    ceil.calculate_AABB();
+
+    Mesh wall_back = plane;
+    wall_back.set_rotation({M_PI/2, 0, 0});
+    wall_back.set_position({0, 0, -5});
+    wall_back.set_material(mat_white);
+    wall_back.update_material();
+    rt.add_object(&wall_back);
+    wall_back.calculate_AABB();
+
+    Mesh wall_red = plane;
+    wall_red.set_rotation({0, 0, -M_PI/2});
+    wall_red.set_position({-5, 0, 0});
+    wall_red.set_material(mat_red);
+    wall_red.update_material();
+    rt.add_object(&wall_red);
+    wall_red.calculate_AABB();
+
+    Mesh wall_green = plane;
+    wall_green.set_rotation({0, 0, M_PI/2});
+    wall_green.set_position({5, 0, 0});
+    wall_green.set_material(mat_green);
+    wall_green.update_material();
+    rt.add_object(&wall_green);
+    wall_green.calculate_AABB();
+
+    Mesh light = load_mesh_from("default_model/cube.obj");
+    light.set_scale({2.5f, 0.1f, 2.5f});
+    light.set_position({0, 5, 0});
+    light.set_material(mat_light);
+    light.update_material();
+    rt.add_object(&light);
+    light.calculate_AABB();
 
     // camera setting
-    camera.position.z = 10;
-    camera.FOV = 90.0f;
-    camera.max_range = 100;
-    camera.max_ray_bounce_count = 50;
-    camera.ray_per_pixel = 1;
+    camera->position.z = 10;
+    camera->FOV = 90.0f;
+    camera->max_range = 100;
+    camera->max_ray_bounce_count = 50;
+    camera->ray_per_pixel = 1;
 
-    camera.init();
+    camera->init();
 
     std::thread draw_thread(draw_to_window);
 
@@ -328,8 +154,7 @@ int main() {
                 mouse_pos_x *= WIDTH / (float)w;
                 mouse_pos_y *= HEIGHT / (float)h;
 
-                Ray ray = camera.ray(mouse_pos_x, mouse_pos_y);
-                HitInfo hit = ray_collision(&ray);
+                HitInfo hit = rt.get_collision_on(mouse_pos_x, mouse_pos_y);
                 if(hit.did_hit) {
                     selecting_object = hit.object;
                 }
@@ -350,57 +175,57 @@ int main() {
                 rot_speed /= 4;
             }
 
-            Vec3 cam_pos = camera.position;
-            float cam_pan = camera.panned_angle;
-            float cam_tilt = camera.tilted_angle;
+            Vec3 cam_pos = camera->position;
+            float cam_pan = camera->panned_angle;
+            float cam_tilt = camera->tilted_angle;
 
-            if(keys[SDL_SCANCODE_LEFT]) camera.pan(rot_speed);
-            if(keys[SDL_SCANCODE_RIGHT]) camera.pan(-rot_speed);
-            if(keys[SDL_SCANCODE_UP]) camera.tilt(rot_speed);
-            if(keys[SDL_SCANCODE_DOWN]) camera.tilt(-rot_speed);
-            if(keys[SDL_SCANCODE_W]) camera.move_foward(speed);
-            if(keys[SDL_SCANCODE_S]) camera.move_foward(-speed);
-            if(keys[SDL_SCANCODE_A]) camera.move_right(-speed);
-            if(keys[SDL_SCANCODE_D]) camera.move_right(speed);
-            if(keys[SDL_SCANCODE_X]) camera.position.y += speed;
-            if(keys[SDL_SCANCODE_Z]) camera.position.y -= speed;
+            if(keys[SDL_SCANCODE_LEFT]) camera->pan(rot_speed);
+            if(keys[SDL_SCANCODE_RIGHT]) camera->pan(-rot_speed);
+            if(keys[SDL_SCANCODE_UP]) camera->tilt(rot_speed);
+            if(keys[SDL_SCANCODE_DOWN]) camera->tilt(-rot_speed);
+            if(keys[SDL_SCANCODE_W]) camera->move_foward(speed);
+            if(keys[SDL_SCANCODE_S]) camera->move_foward(-speed);
+            if(keys[SDL_SCANCODE_A]) camera->move_right(-speed);
+            if(keys[SDL_SCANCODE_D]) camera->move_right(speed);
+            if(keys[SDL_SCANCODE_X]) camera->position.y += speed;
+            if(keys[SDL_SCANCODE_Z]) camera->position.y -= speed;
 
-            if(camera.position != cam_pos or camera.panned_angle != cam_pan or camera.tilted_angle != cam_tilt)
-                stationary_frames_count = 0;
+            if(camera->position != cam_pos or camera->panned_angle != cam_pan or camera->tilted_angle != cam_tilt)
+                rt.frame_count = 0;
         }
 
-        float old_FOV = camera.FOV;
-        float old_max_range = camera.max_range;
-        float old_focus_distance = camera.focus_distance;
+        float old_FOV = camera->FOV;
+        float old_max_range = camera->max_range;
+        float old_focus_distance = camera->focus_distance;
 
         int objs_state = 0;
         sdl.gui(
             &screen_color,
             &camera_control,
-            &lazy_ray_trace, &render_frame_count, &stationary_frames_count, delay, (int)threads.size(),
+            &rt.lazy_ray_trace, &rt.render_frame_count, &rt.frame_count, delay, rt.get_running_thread_count(),
             &WIDTH, &HEIGHT,
-            &objects, selecting_object, &objs_state,
-            &camera,
-            &up_sky_color, &down_sky_color,
+            &rt.objects, selecting_object, &objs_state,
+            &rt.camera,
+            &rt.up_sky_color, &rt.down_sky_color,
             &running
         );
 
         switch(objs_state) {
             case 1: // make new
-                selecting_object = objects.back();
-                stationary_frames_count = 0;
+                selecting_object = rt.objects.back();
+                rt.frame_count = 0;
                 break;
             case 2: // delete
                 selecting_object = nullptr;
-                stationary_frames_count = 0;
+                rt.frame_count = 0;
                 break;
         }
 
-        if(old_FOV != camera.FOV
-                or old_max_range != camera.max_range
-                or old_focus_distance != camera.focus_distance
-                or camera.WIDTH != WIDTH
-                or camera.HEIGHT != HEIGHT)
+        if(old_FOV != camera->FOV
+                or old_max_range != camera->max_range
+                or old_focus_distance != camera->focus_distance
+                or camera->WIDTH != WIDTH
+                or camera->HEIGHT != HEIGHT)
             update_camera();
 
         sdl.render();

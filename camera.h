@@ -1,9 +1,6 @@
 #pragma once
-#include "vec3.h"
 #include "objects.h"
-#include "transformation.h"
 #include "ray.h"
-#include "constant.h"
 
 class Camera {
 private:

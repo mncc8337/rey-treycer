@@ -1,8 +1,6 @@
 #pragma once
 #include <vector>
 #include "transformation.h"
-#include "vec3.h"
-#include "constant.h"
 #include "material.h"
 
 class Triangle {
