@@ -94,7 +94,7 @@ public:
         std::string str;
         std::ostringstream oss;
         oss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");
-        str = "res/" + oss.str() + ".png";
+        str = "imgs/" + oss.str() + ".png";
         char *c = const_cast<char*>(str.c_str());
 
         save_to_image(c, screen_color, tonemapping_method, gamma);
