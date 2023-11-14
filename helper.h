@@ -42,10 +42,7 @@ inline Vec3 tonemap(Vec3 v, int style) {
 inline Vec3 gamma_correct(Vec3 color, float t) {
     return Vec3(pow(color.x, t), pow(color.y, t), pow(color.z, t));
 }
-inline void save_to_image(char* name, std::vector<std::vector<Vec3>>* colors, int tonemapping_method, float gamma) {
-    int WIDTH = colors->size();
-    int HEIGHT = (*colors)[0].size();
-
+inline void save_to_image(char* name, std::vector<std::vector<Vec3>>* colors, int tonemapping_method, float gamma, int WIDTH, int HEIGHT) {
     unsigned char data[WIDTH * HEIGHT * 3];
 
     for(int x = 0; x < WIDTH; x++)

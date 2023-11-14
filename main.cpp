@@ -2,17 +2,16 @@
 #include "rey-treycer.h"
 #include "graphics.h"
 
-int WIDTH = 320;
-int HEIGHT = 180;
+int WIDTH = 1280;
+int HEIGHT = 720;
 
-ReyTreycer rt(WIDTH, HEIGHT, 4);
+ReyTreycer rt(WIDTH, HEIGHT, 8);
 SDL sdl(CHAR("ray tracer"), WIDTH, HEIGHT);
 const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 Camera* camera = &rt.camera;
 
 bool running = true;
-double delay = 0;
 bool camera_control = true;
 
 int mouse_pos_x;
@@ -42,6 +41,12 @@ void draw_to_window() {
             rt.draw_frame();
             screen_color = rt.screen_color;
         }
+        else std::cout << "drawing thread resting ...\n";
+        // for some unknown reasons that related to g++ optimization
+        // there must be a line that always be called in order to keep this thread running
+        // so the above line may seem useless and resource consumming
+        // but it is necessary to keep the program run normally when using compiler optimization
+        // TODO: think of a better way to run the draw thread
     }
 }
 
@@ -129,7 +134,10 @@ int main() {
 
     // camera setting
     camera->position.z = 10;
-    camera->FOV = 90.0f;
+    camera->focus_distance = 20.0f;
+    camera->aperture = 0.2;
+    camera->diverge_strength = 0.01;
+    camera->FOV = 75.0f;
     camera->max_range = 100;
     camera->max_ray_bounce_count = 50;
     camera->ray_per_pixel = 1;
@@ -202,7 +210,7 @@ int main() {
         sdl.gui(
             &screen_color,
             &camera_control,
-            &rt.lazy_ray_trace, &rt.render_frame_count, &rt.frame_count, delay, rt.get_running_thread_count(),
+            &rt.lazy_ray_trace, &rt.render_frame_count, &rt.frame_count, rt.delay, rt.get_running_thread_count(),
             &WIDTH, &HEIGHT,
             &rt.objects, selecting_object, &objs_state,
             &rt.camera,

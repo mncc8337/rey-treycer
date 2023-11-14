@@ -156,8 +156,8 @@ class ReyTreycer {
     int HEIGHT;
 
     int frame_count = 0;
-    int render_frame_count = 10;
-    // time (ms) from last rendered frame to prevous rendered frame
+    int render_frame_count = 100;
+    // time (ms) from last rendered frame to previous rendered frame
     double delay = 0;
     std::vector<std::vector<Vec3>> screen_color;
 
@@ -175,6 +175,7 @@ class ReyTreycer {
     // the camera
     Camera camera;
 
+    // NOTE: thread_count should be even
     ReyTreycer(int width = 1280, int height = 720, int thread_count = 4) {
         WIDTH = width;
         HEIGHT = height;

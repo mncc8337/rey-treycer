@@ -49,7 +49,7 @@ int main() {
     oss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");
     str = "imgs/" + oss.str() + ".png";
     char *c = const_cast<char*>(str.c_str());
-    save_to_image(c, &rt.screen_color, RGB_CLAMPING, 1);
+    save_to_image(c, &rt.screen_color, RGB_CLAMPING, 1, rt.WIDTH, rt.HEIGHT);
 
     return 0;
 }

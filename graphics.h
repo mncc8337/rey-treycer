@@ -97,7 +97,7 @@ public:
         str = "imgs/" + oss.str() + ".png";
         char *c = const_cast<char*>(str.c_str());
 
-        save_to_image(c, screen_color, tonemapping_method, gamma);
+        save_to_image(c, screen_color, tonemapping_method, gamma, WIDTH, HEIGHT);
     }
     void process_gui_event() {
         ImGui_ImplSDL2_ProcessEvent(&event);
