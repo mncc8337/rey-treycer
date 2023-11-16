@@ -11,6 +11,9 @@ const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 Camera* camera = &rt.camera;
 
+const float SPEED = 5.0f;
+const float ROT_SPEED = 0.8f;
+
 bool running = true;
 bool camera_control = true;
 
@@ -172,8 +175,8 @@ int main() {
 
         // handling keyboard signal
         if(camera_control) {
-            float speed = 5.0f * delta_time;
-            float rot_speed = 0.8f * delta_time;
+            float speed = SPEED * delta_time;
+            float rot_speed = ROT_SPEED * delta_time;
 
             if(keys[SDL_SCANCODE_LSHIFT]) {
                 speed *= 2;

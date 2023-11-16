@@ -4,26 +4,36 @@
 
 class Camera {
 private:
+    // a vector to store pixels position in world to calculate ray directions
     std::vector<std::vector<Vec3>> pixel_in_world;
 public:
     Vec3 position = VEC3_ZERO;
 
     float panned_angle = 0;
     float tilted_angle = 0;
-    float max_tilt = 80; // avoid confusion
+    // avoid weird camera rotation, in degree
+    float max_tilt = 80;
 
+    // the width of viewport
     int WIDTH;
+    // the height of viewport
     int HEIGHT;
     
-    float FOV = 75.0f; // degree, [1, 179]
+    // field of view in degree, range [1, 179]
+    float FOV = 75.0f;
 
     float focus_distance = 10.0f;
-    float aperture = 0.02; // how much light can come to the sensor, more light -> more blur
-    float diverge_strength = 0.001; // for anti-aliasing
+    // how much light can enter the camera, more light -> more blur
+    float aperture = 0.02;
+    // for anti-aliasing
+    float diverge_strength = 0.001;
 
+    // how many times a light ray can bounce
     int max_ray_bounce_count = 10;
+    // how many times to calculate color for a pixel
     int ray_per_pixel = 1;
 
+    // max distance the camera can see
     float max_range = 50.0f;
 
 
@@ -31,7 +41,7 @@ public:
         pixel_in_world = std::vector<std::vector<Vec3>>(MAX_WIDTH, v_height);
     }
 
-    // create a ray for (x, y) pixel in screen
+    // create a ray for pixel (x, y)
     Ray ray(int x, int y) {
         // offset ray origin for defocus effect
         Vec3 defocus_jitter = random_point_in_circle() * aperture / 2;
@@ -52,7 +62,7 @@ public:
 
         return new_ray;
     }
-    // store viewport pixels position for camera rotation
+    // calculate position of pixels
     // this is the position if camera looking direction is (0, 0, -1)
     void init() {
         float viewport_width = 1;
@@ -72,6 +82,7 @@ public:
         pan(-panned_angle);
     }
 
+    // tilt the camera by rotating position of pixels
     void tilt(float a) {
         // clamp tilted_angle to [-max_tilt, max_tilt]
         float old_tilted_angle = tilted_angle;
@@ -86,17 +97,20 @@ public:
             for(int y = 0; y < HEIGHT; y++)
                 pixel_in_world[x][y] = _rotate_on_axis(pixel_in_world[x][y], cam_right, a);
     }
+    // pan the camera by rotating position of pixels
     void pan(float a) {
         panned_angle += a;
         for(int x = 0; x < WIDTH; x++)
             for(int y = 0; y < HEIGHT; y++)
                 pixel_in_world[x][y] = _rotate_y(pixel_in_world[x][y], a);
     }
+    // move the camera foward
     void move_foward(float ammount) {
         Vec3 dir = get_looking_direction();
         dir *= ammount;
         position += dir;
     }
+    // move the camera to the right
     void move_right(float ammount) {
         Vec3 dir = get_right_direction();
         dir *= ammount;

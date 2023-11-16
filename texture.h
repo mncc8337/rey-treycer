@@ -28,6 +28,8 @@ public:
         return BLACK;
     }
 };
+
+// a texture type that takes a image as texture
 class ImageTexture: public Texture {
 private:
     int image_width, image_height;
@@ -52,6 +54,8 @@ public:
         return Vec3(r, g, b) / 255.0f;
     };
 };
+
+// a texture type that takes a function to generate texture
 class ProceduralTexture: public Texture {
 private:
     std::function<Vec3(SurfaceInfo)> func;
@@ -60,6 +64,8 @@ public:
         return true;
     }
     void set_function(std::function<Vec3(SurfaceInfo)> f) {
+        // the function must take only a SurfaceInfo as param and return a Vec3 `color`
+        // see predefined procedural textures at the end of `rey-treycer.h` for examples
         func = f;
     }
     Vec3 get_texture(SurfaceInfo h) {

@@ -1,6 +1,9 @@
 #pragma once
 #include "constant.h"
 
+// im lazy to implement matrix maths so i hard coded them xd
+// now these functions are unreadable lol
+
 inline Vec3 _rotate(Vec3 v, float x, float y, float z) {
     // rotation matrix
     // [ a b c

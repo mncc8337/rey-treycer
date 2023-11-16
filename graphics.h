@@ -12,21 +12,24 @@
 #include <sstream>
 #include <iomanip>
 
+// TODO: add more backends
+
 class SDL {
 private:
     SDL_Texture* texture;
     ImGuiIO io;
 
+    // prevously selected object
     Object* prev_object = nullptr;
 
-    // object transform property
+    // object transform properties
     float position[3];
     float rotation[3];
     float scale[3];
     float radius;
     bool uniform_scaling = true;
 
-    // object material property
+    // object material properties
     float color[3];
     float emission_strength = 0.0f;
     bool emit_light = false;
@@ -38,12 +41,13 @@ private:
     bool smoke = false;
     float density = 1.0f;
 
-    // editor setting
+    // editor settings
     bool show_crosshair = false;
     float up_sky_color[3] = {0.5, 0.7, 1.0};
     float down_sky_color[3] = {1.0, 1.0, 1.0};
     float gamma = 1.0f;
 
+    // the focal plane for visualizing focus point
     Object* focal_plane = nullptr;
     bool show_focal_plane = false;
 
@@ -52,9 +56,11 @@ public:
     SDL_Window *window;
     SDL_Renderer *renderer;
 
+    // viewport geometries
     int WIDTH;
     int HEIGHT;
 
+    // for SDL rendering
     unsigned char* pixels;
     int pitch;
 
@@ -64,6 +70,7 @@ public:
 
         window = SDL_CreateWindow(title,
                                 SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                                // default window geometries
                                 1280, 720,
                                 SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
@@ -74,6 +81,7 @@ public:
         ImGui::CreateContext();
         io = ImGui::GetIO(); (void)io;
 
+        // so as not to burn your eyes
         ImGui::StyleColorsDark();
 
         ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
@@ -82,12 +90,14 @@ public:
     bool is_hover_over_gui() {
         return ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByPopup);
     }
+    // change viewport geometries
     void change_geometry(int w, int h) {
         WIDTH = w;
         HEIGHT = h;
         disable_drawing();
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
     }
+    // save image from vector
     void save_image(std::vector<std::vector<Vec3>>* screen_color, int tonemapping_method, float gamma) {
         auto t = std::time(nullptr);
         auto tm = *std::localtime(&t);
@@ -102,6 +112,8 @@ public:
     void process_gui_event() {
         ImGui_ImplSDL2_ProcessEvent(&event);
     }
+
+    // TODO: make the params look less ugly
     void gui(std::vector<std::vector<Vec3>>* screen,
              bool* camera_control,
              bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int running_thread_count,
@@ -125,6 +137,8 @@ public:
                 draw_pixel(x, y, COLOR);
             }
         disable_drawing();
+
+        // the UI part
         
         if(ImGui::CollapsingHeader("Editor")) {
             std::string info;
@@ -463,8 +477,10 @@ public:
         }
         ImGui::End();
 
+        // up date viewport geometries if changed
         if(*width != WIDTH or *height != HEIGHT) change_geometry(*width, *height);
     }
+
     // graphics
     void enable_drawing() {
         SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch);
@@ -486,12 +502,15 @@ public:
         // load texture to renderer
         SDL_RenderCopy(renderer, texture, NULL, &rect);
     }
+    // over-complicated maths to draw a crosshair in the middle of the window
     void draw_crosshair() {
         int w, h;
         SDL_GetWindowSize(window, &w, &h);
-        int middle_x = w >> 1;
-        int middle_y = h >> 1;
+        int middle_x = w >> 1; // divided by 2 but faster
+        int middle_y = h >> 1; // divided by 2 but faster
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+
+        // black magic
         for(int i = -!(w % 2); i <= 0; i++)
             SDL_RenderDrawLine(renderer, middle_x + i, middle_y - 5, middle_x + i, middle_y + 5 - !(h % 2));
         for(int i = -!(h % 2); i <= 0; i++)
@@ -500,6 +519,7 @@ public:
     void render() {
         load_texture();
         if(show_crosshair) draw_crosshair();
+
         ImGui::Render();
         SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
         ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());

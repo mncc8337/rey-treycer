@@ -18,7 +18,7 @@ inline float deg2rad(float a) {
 inline float rad2deg(float a) {
     return a / M_PI * 180;
 }
-// return a sorted array of divider of a
+// return a sorted array of dividers of a
 inline std::vector<int> get_dividers(int a) {
     std::vector<int> dividers;
     for(int i = 1; i <= a / 2; i++)
@@ -28,6 +28,7 @@ inline std::vector<int> get_dividers(int a) {
     return dividers;
 }
 
+// TODO: add more tonemapping methods
 enum TONEMAPPING {
     RGB_CLAMPING = 0,
 };
@@ -42,6 +43,7 @@ inline Vec3 tonemap(Vec3 v, int style) {
 inline Vec3 gamma_correct(Vec3 color, float t) {
     return Vec3(pow(color.x, t), pow(color.y, t), pow(color.z, t));
 }
+// save image from vector
 inline void save_to_image(char* name, std::vector<std::vector<Vec3>>* colors, int tonemapping_method, float gamma, int WIDTH, int HEIGHT) {
     unsigned char data[WIDTH * HEIGHT * 3];
 
@@ -64,28 +66,32 @@ inline void save_to_image(char* name, std::vector<std::vector<Vec3>>* colors, in
     stbi_write_png(name, WIDTH, HEIGHT, 3, data, WIDTH * 3);
 }
 
+// generate a uniform random value
 inline float random_val(double from = 0, double to = 1) {
     static std::uniform_real_distribution<float> distribution(from, to);
     static std::mt19937 generator;
     return distribution(generator);
 }
+// generate a normal distributed random value
 inline float random_val_normal_distribution(double from = 0, double to = 1) {
     static std::normal_distribution<float> distribution(from, to);
     static std::mt19937 generator;
     return distribution(generator);
 }
+// generate a random direction
 inline Vec3 random_direction() {
     float x = random_val_normal_distribution();
     float y = random_val_normal_distribution();
     float z = random_val_normal_distribution();
     return Vec3(x, y, z).normalize();
 }
-
+// generate a random direction in a hemisphere
 inline Vec3 random_direction_in_hemisphere(Vec3 n) {
     Vec3 v = random_direction();
     if(n.dot(v) < 0) v = -v;
     return v;
 }
+// generate a random point in circle, returned Vec3 instead of Vec2 because im lazy to implement Vec2
 inline Vec3 random_point_in_circle() {
     float angle = random_val() * 2 * M_PI;
     Vec3 point_on_circle(cos(angle), sin(angle), 0);
@@ -112,7 +118,7 @@ inline float reflectance(float cosine, float ri) {
     float icos = 1 - cosine;
     return r0 + (1 - r0) * icos * icos * icos * icos * icos;
 }
-
+// load a mesh from a *.obj file, simplified
 inline Mesh load_mesh_from(std::string filename) {
     Mesh out;
 

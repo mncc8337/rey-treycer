@@ -2,6 +2,8 @@
 #include <vector>
 #include "vec3.h"
 
+// all magic numbers
+
 const int MAX_WIDTH = 2000;
 const int MAX_HEIGHT = 2000;
 

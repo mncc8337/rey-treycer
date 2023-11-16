@@ -31,6 +31,7 @@ struct Ray {
         if(c < 1e-6) c = 0;
         float discriminant = b * b - a * c;
 
+        // the distance from ray origin to sphere surface
         float l = c; // this is an approximation, the true equation is `l = offset_origin.length() - radius`
         // determine wether the ray origin is in the sphere or not
         bool inside_object = l <= 0;
@@ -42,6 +43,7 @@ struct Ray {
         bool transparent = mat.transparent or mat.smoke;
         if(!transparent and inside_object) return h;
 
+        // if hit the sphere
         if(discriminant >= 0) {
             const float sqrt_discriminant = sqrt(discriminant);
             float distance;
@@ -156,6 +158,7 @@ struct Ray {
         // assume that mesh.calculate_AABB() is called at least once
         // if not collide with AABB then skip
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
+
         // find closest hit
         for(int i = 0; i < (int)mesh->tris.size(); i++) {
             Material mat = mesh->get_material();

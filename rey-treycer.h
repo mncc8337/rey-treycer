@@ -6,13 +6,21 @@
 #include "image_util.cpp"
 
 class ReyTreycer {
-    private:
+private:
+    // TODO: better naming
+
+    // how many columns a single thread will draw
     int column_threads;
+    // how many rows a single thread will draw
     int row_threads;
+    // the width of the rectangle a thread will draw
     int thread_width;
+    // the height of the rectangle a thread will draw
     int thread_height;
+    // a vector to store all draw threads
     std::vector<std::thread> threads;
 
+    // get background light
     Vec3 get_environment_light(Vec3 dir) {
         // dir must be normalized
         float level = (dir.y + 1) / 2;
@@ -24,11 +32,11 @@ class ReyTreycer {
         HitInfo closest_hit;
         closest_hit.distance = INFINITY;
 
-        // find the first intersect point in all sphere
+        // find the first intersect point in all objects
         for(Object* obj: objects) {
             if(!obj->visible) continue;
 
-            // only calculate uv if object has textures
+            // only calculate uv if object has texture
             bool calculate_uv = obj->get_material().texture->has_texture();
 
             HitInfo h;
@@ -37,6 +45,7 @@ class ReyTreycer {
             else
                 h = ray->cast_to_mesh(obj, calculate_uv);
 
+            // get the closest hit
             if(h.did_hit and h.distance < closest_hit.distance) {
                 closest_hit = h;
                 closest_hit.object = obj;
@@ -46,6 +55,7 @@ class ReyTreycer {
         return closest_hit;
     }
 
+    // get ray traced color from pixel (x, y)
     Vec3 ray_trace(int x, int y) {
         Vec3 ray_color = WHITE;
         Vec3 incomming_light = BLACK;
@@ -120,17 +130,14 @@ class ReyTreycer {
         return incomming_light;
     }
 
+    // start a thread to ray trace pixels in range (from_x, from_y) to (to_x, to_y)
     void drawing_in_rectangle(int from_x, int to_x, int from_y, int to_y) {
         for(int x = from_x; x <= to_x; x++)
             for(int y = from_y; y <= to_y; y++) {
                 Vec3 draw_color = BLACK;
 
                 int lazy_ray_trace_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
-                // lazy ray trace
-                if(lazy_ray_trace and lazy_ray_trace_condition % 2 == frame_count % 2) {
-                    // do nothing
-                }
-                else {
+                if(!lazy_ray_trace or lazy_ray_trace_condition % 2 != frame_count % 2) {
                     // make more ray per pixel for more accurate color in one frame
                     // but decrease performance
                     for(int k = 1; k <= camera.ray_per_pixel; k++) {
@@ -144,6 +151,7 @@ class ReyTreycer {
 
                     // progressive rendering
                     float w = 1.0f / (frame_count + 1);
+                    // later frames have less impact than previous frames
                     if(screen_color[x][y] != BLACK)
                         draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
                     screen_color[x][y] = draw_color;
@@ -151,11 +159,13 @@ class ReyTreycer {
             }
     }
 
-    public:
+public:
     int WIDTH;
     int HEIGHT;
 
+    // current rendered frames
     int frame_count = 0;
+    // frames to render
     int render_frame_count = 100;
     // time (ms) from last rendered frame to previous rendered frame
     double delay = 0;
@@ -167,9 +177,11 @@ class ReyTreycer {
     Vec3 down_sky_color = WHITE;
 
     // ray trace pixel like a checker board per frame
+    // reduce render time by half
+    // only turn on for debug/design
     bool lazy_ray_trace = false;
 
-    // all object pointer in the scene
+    // all object pointers in the scene
     std::vector<Object*> objects;
 
     // the camera
@@ -190,13 +202,16 @@ class ReyTreycer {
 
         screen_color = std::vector<std::vector<Vec3>>(MAX_WIDTH, v_height);
     }
+    // get the object on pixel (x, y)
     HitInfo get_collision_on(int x, int y) {
         Ray ray = camera.ray(x, y);
         return ray_collision(&ray);
     }
+    // get the number of running draw thread
     int get_running_thread_count() {
         return threads.size();
     }
+    // update screen geometry
     void update_size(int width, int height) {
         WIDTH = width;
         HEIGHT = height;
@@ -206,6 +221,7 @@ class ReyTreycer {
         thread_height = height / row_threads;
     }
 
+    // draw and calculate delay
     void draw_frame() {
         auto start = std::chrono::system_clock::now();
 
@@ -221,6 +237,7 @@ class ReyTreycer {
         // wait till all threads are finished
         for(int i = 0; i < (int)threads.size(); i++)
             threads[i].join();
+        // clear the vector for later use
         threads.clear();
 
         auto end = std::chrono::system_clock::now();

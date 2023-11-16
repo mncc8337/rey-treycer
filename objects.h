@@ -6,11 +6,12 @@
 class Triangle {
 public:
     Vec3 vert[3] = {VEC3_ZERO, VEC3_ZERO, VEC3_ZERO};
-    Vec3 vert_texture[3] = {VEC3_ZERO, VEC3_ZERO, VEC3_ZERO}; // im lazy to create a vec2 class
+    // contain vert texture location in Vec2, being Vec3 because im lazy to implement Vec2
+    Vec3 vert_texture[3] = {VEC3_ZERO, VEC3_ZERO, VEC3_ZERO};
     Material* material;
 };
 class Object {
-protected:
+protected: // idk the difference of private and protected
     Vec3 localx = Vec3(1, 0, 0);
     Vec3 localy = Vec3(0, 1, 0);
     Vec3 localz = Vec3(0, 0, 1);
@@ -24,6 +25,7 @@ public:
     Vec3 AABB_min = VEC3_ZERO;
     Vec3 AABB_max = VEC3_ZERO;
     std::vector<Triangle> tris;
+    // the default triangles use to restore rotation (because i dont know matrix maths lol)
     std::vector<Triangle> default_tris;
 
     virtual void set_position(Vec3 p) {
@@ -94,6 +96,7 @@ public:
             default_tris[i].material = &material;
         }
     }
+    // calculate Axis Aligned Bounding Box to optimize ray-mesh intersection
     void calculate_AABB() {
         Vec3 min =  Vec3(INFINITY, INFINITY, INFINITY);
         Vec3 max = -Vec3(INFINITY, INFINITY, INFINITY);
