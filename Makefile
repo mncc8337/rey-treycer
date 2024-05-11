@@ -47,7 +47,6 @@ endif
 
 all: $(EXE)
 	@echo Build complete for $(ECHO_MESSAGE)
-	rm -f $(addsuffix .o, $(basename $(SOURCES)))
 
 $(EXE): $(OBJS)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LIBS)
