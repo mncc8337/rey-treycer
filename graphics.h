@@ -12,9 +12,7 @@
 #include <sstream>
 #include <iomanip>
 
-// TODO: add more backends
-
-class SDL {
+class GUI {
 private:
     SDL_Texture* texture;
     ImGuiIO io;
@@ -64,7 +62,7 @@ public:
     unsigned char* pixels;
     int pitch;
 
-    SDL(char* title, int w, int h) {
+    GUI(char* title, int w, int h) {
         WIDTH = w; HEIGHT = h;
         SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER);
 
@@ -116,7 +114,9 @@ public:
     // TODO: make the params look less ugly
     void gui(std::vector<std::vector<Vec3>>* screen,
              bool* camera_control,
-             bool* lazy_ray_trace, int* frame_count, int* frame_num, double delay, int running_thread_count,
+             bool* lazy_mode, int* frame_count, int* frame_num,
+             double delay, double avg_delay,
+             int running_thread_count,
              int* width, int* height,
              std::vector<Object*>* oc, Object* selecting_object, int* objects_state,
              Camera* camera,
@@ -148,10 +148,11 @@ public:
                 info = "stopping, " + std::to_string(running_thread_count) + " thread(s) remain(s)";
             }
             else {
-                info = "done rendering";
+                info = "done rendering " + std::to_string(*frame_count) + " frames";
             }
 
-            std::string delay_text = "last frame delay " + std::to_string(delay) + "ms";
+            std::string delay_text = "last delay " + std::to_string(delay) + "ms";
+            delay_text += ", avg " + std::to_string(avg_delay) + "ms";
 
             ImGui::Text("%s", info.c_str());
             ImGui::Text("%s", delay_text.c_str());
@@ -166,10 +167,10 @@ public:
 
             ImGui::Checkbox("camera control", camera_control);
             if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("turn on camera control\n WASD: position\n XZ: up/down\n right/left/up/down: angle");
-            ImGui::Checkbox("lazy ray tracing", lazy_ray_trace);
+                ImGui::SetTooltip("turn on camera control\n WASD: position\n EQ: up/down\n right/left/up/down: angle");
+            ImGui::Checkbox("lazy mode", lazy_mode);
             if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("increase performance but decrease image quality");
+                ImGui::SetTooltip("render in checker pattern, decrease render time");
 
             ImGui::Checkbox("show crosshair", &show_crosshair);
 
@@ -177,6 +178,7 @@ public:
             ImGui::Checkbox("show focal plane", &show_focal_plane);
             if(show_focal_plane) {
                 // add focal plane if not have
+                // use default id: 0
                 if(focal_plane == nullptr) {
                     focal_plane = (*oc)[0];
                 }
@@ -184,15 +186,16 @@ public:
                 focal_plane->visible = true;
 
                 Vec3 new_pos = camera->position + camera->get_looking_direction() * camera->focus_distance;
-                Vec3 rotating_axis = -camera->get_right_direction();
+                Vec3 right_dir = -camera->get_right_direction();
 
+                // optimized version of rotating then translating
                 focal_plane->tris = focal_plane->default_tris;
                 for(int i = 0; i < (int)focal_plane->tris.size(); i++) {
                     for(int j = 0; j < 3; j++) {
                         Vec3* pos = &(focal_plane->tris[i].vert[j]);
-                        *pos = _scale(*pos, {1e3, 0, 1e3});
+                        *pos = _scale(*pos, {100, 0, 100});
                         *pos = _rotate_y(*pos, camera->panned_angle); // panned angle
-                        *pos = _rotate_on_axis(*pos, rotating_axis, camera->tilted_angle + M_PI / 2); // tilted angle
+                        *pos = _rotate_on_axis(*pos, right_dir, -camera->tilted_angle + M_PI/2); // tilted angle
                         *pos = *pos + new_pos;
                     }
                 }
@@ -254,7 +257,7 @@ public:
             bool new_obj = false;
             if(ImGui::Button("add sphere")) {
                 Material mat;
-                mat.texture = new BaseTexture;
+                mat.texture = new NullTexture;
 
                 Sphere* sphere = new Sphere;
                 sphere->set_material(mat);
@@ -264,7 +267,7 @@ public:
             ImGui::SameLine();
             if(ImGui::Button("add plane")) {
                 Material mat;
-                mat.texture = new BaseTexture;
+                mat.texture = new NullTexture;
 
                 Mesh* mesh = new Mesh;
                 *mesh = load_mesh_from("default_model/plane.obj");
@@ -276,7 +279,7 @@ public:
             ImGui::SameLine();
             if(ImGui::Button("add cube")) {
                 Material mat;
-                mat.texture = new BaseTexture;
+                mat.texture = new NullTexture;
 
                 Mesh* mesh = new Mesh;
                 *mesh = load_mesh_from("default_model/cube.obj");
@@ -288,7 +291,7 @@ public:
             ImGui::SameLine();
             if(ImGui::Button("add dodecahedron")) {
                 Material mat;
-                mat.texture = new BaseTexture;
+                mat.texture = new NullTexture;
 
                 Mesh* mesh = new Mesh;
                 *mesh = load_mesh_from("default_model/dodecahedron.obj");
@@ -303,12 +306,12 @@ public:
             ImGui::Text("selecting focal plane");
         }
         else {
-            const char* typ;
+            std::string txt = "selecting a ";
             if(selecting_object->is_sphere())
-                typ = std::string("sphere").c_str();
+                txt += "sphere";
             else
-                typ = std::string("mesh").c_str();
-            ImGui::Text("selecting a %s", typ);
+                txt += "mesh";
+            ImGui::Text(txt.c_str());
 
             // if select a new object
             if(prev_object != selecting_object) {

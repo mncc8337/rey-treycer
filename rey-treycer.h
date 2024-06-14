@@ -1,6 +1,5 @@
 #pragma once
 #include <thread>
-#include <chrono>
 #include "camera.h"
 #include "objects.h"
 #include "image_util.cpp"
@@ -136,8 +135,8 @@ private:
             for(int y = from_y; y <= to_y; y++) {
                 Vec3 draw_color = BLACK;
 
-                int lazy_ray_trace_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
-                if(!lazy_ray_trace or lazy_ray_trace_condition % 2 != frame_count % 2) {
+                int lazy_mode_condition = x + y * WIDTH + (WIDTH % 2 == 0 and y % 2 == 1);
+                if(!lazy_mode or lazy_mode_condition % 2 != rendered_count % 2) {
                     // make more ray per pixel for more accurate color in one frame
                     // but decrease performance
                     for(int k = 1; k <= camera.ray_per_pixel; k++) {
@@ -150,7 +149,7 @@ private:
                         continue;
 
                     // progressive rendering
-                    float w = 1.0f / (frame_count + 1);
+                    float w = 1.0f / (rendered_count + 1.0f);
                     // later frames have less impact than previous frames
                     if(screen_color[x][y] != BLACK)
                         draw_color = screen_color[x][y] * (1 - w) + draw_color * w;
@@ -164,11 +163,8 @@ public:
     int HEIGHT;
 
     // current rendered frames
-    int frame_count = 0;
-    // frames to render
-    int render_frame_count = 100;
-    // time (ms) from last rendered frame to previous rendered frame
-    double delay = 0;
+    int rendered_count = 0;
+
     std::vector<std::vector<Vec3>> screen_color;
 
     // environment variable
@@ -179,7 +175,7 @@ public:
     // ray trace pixel like a checker board per frame
     // reduce render time by half
     // only turn on for debug/design
-    bool lazy_ray_trace = false;
+    bool lazy_mode = false;
 
     // all object pointers in the scene
     std::vector<Object*> objects;
@@ -223,8 +219,6 @@ public:
 
     // draw and calculate delay
     void draw_frame() {
-        auto start = std::chrono::system_clock::now();
-
         // start all draw thread
         for(int w = 0; w < column_threads; w++)
             for(int h = 0; h < row_threads; h++) {
@@ -240,12 +234,7 @@ public:
         // clear the vector for later use
         threads.clear();
 
-        auto end = std::chrono::system_clock::now();
-
-        std::chrono::duration<double> elapsed = end - start;
-        delay = elapsed.count() * 1000;
-        
-        frame_count++;
+        rendered_count++;
     }
 
     void add_object(Object* obj) {

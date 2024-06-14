@@ -19,7 +19,7 @@ public:
     }
 };
 // a place holder
-class BaseTexture: public Texture {
+class NullTexture: public Texture {
 public:
     bool has_texture() {
         return false;

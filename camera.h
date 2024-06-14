@@ -65,6 +65,9 @@ public:
     // calculate position of pixels
     // this is the position if camera looking direction is (0, 0, -1)
     void init() {
+        panned_angle = 0.0f;
+        tilted_angle = 0.0f;
+
         float viewport_width = 1;
         float viewport_height = (float)HEIGHT/(float)WIDTH;
         float f = 0.5f / tan(deg2rad(FOV/2));
@@ -77,12 +80,7 @@ public:
                 pixel_in_world[x][y] = Vec3(-_w, _h, -f).normalize();
             }
     }
-    void reset_rotation() {
-        tilt(-tilted_angle);
-        pan(-panned_angle);
-    }
 
-    // tilt the camera by rotating position of pixels
     void tilt(float a) {
         // clamp tilted_angle to [-max_tilt, max_tilt]
         float old_tilted_angle = tilted_angle;
@@ -97,7 +95,6 @@ public:
             for(int y = 0; y < HEIGHT; y++)
                 pixel_in_world[x][y] = _rotate_on_axis(pixel_in_world[x][y], cam_right, a);
     }
-    // pan the camera by rotating position of pixels
     void pan(float a) {
         panned_angle += a;
         for(int x = 0; x < WIDTH; x++)
@@ -116,13 +113,19 @@ public:
         dir *= ammount;
         position += dir;
     }
-    Vec3 get_looking_direction() {
-        return -Vec3(sin(panned_angle), sin(tilted_angle), cos(panned_angle));
+    Vec3 get_looking_direction_XZ() {
+        return -Vec3(sin(panned_angle), 0, cos(panned_angle));
     }
-    Vec3 get_up_direction() {
-        return get_looking_direction().cross({-1, 0, 0}).normalize();
+    Vec3 get_looking_direction() {
+        Vec3 dir_xz = get_looking_direction_XZ();
+        return _rotate_on_axis(dir_xz, {-dir_xz.z, 0, dir_xz.x}, tilted_angle);
     }
     Vec3 get_right_direction() {
-        return get_looking_direction().cross({0, 1, 0}).normalize();
+        Vec3 dir_xz = get_looking_direction_XZ();
+        // we dont deal with roll so this is simple enough
+        return {-dir_xz.z, 0, dir_xz.x};
+    }
+    Vec3 get_up_direction() {
+        return -get_looking_direction().cross(get_right_direction());
     }
 };
