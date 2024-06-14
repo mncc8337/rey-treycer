@@ -2,5 +2,5 @@
 	path = examples/imgui
 	url = https://github.com/ocornut/imgui
 [submodule "include/stb"]
-	path = include/stb
+	path = examples/stb
 	url = https://github.com/nothings/stb
