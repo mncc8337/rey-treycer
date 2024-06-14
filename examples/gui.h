@@ -1,4 +1,6 @@
-#pragma once
+#ifndef GUI_H
+#define GUI_H
+
 #include <SDL2/SDL.h>
 #include "objects.h"
 #include "camera.h"
@@ -11,6 +13,8 @@
 
 #include <sstream>
 #include <iomanip>
+
+#include "image.h"
 
 class GUI {
 private:
@@ -131,7 +135,7 @@ public:
         for(int x = 0; x < WIDTH; x++)
             for(int y = 0; y < HEIGHT; y++) {
                 // post processing
-                Vec3 COLOR = tonemap((*screen)[x][y], RGB_CLAMPING);
+                Vec3 COLOR = tonemap((*screen)[x][y], TONEMAP_RGB_CLAMPING);
                 COLOR = gamma_correct(COLOR, gamma);
 
                 draw_pixel(x, y, COLOR);
@@ -231,7 +235,7 @@ public:
                 *frame_num = *frame_count;
 
             if(ImGui::Button("fit window size with viewport size")) SDL_SetWindowSize(window, *width, *height);
-            if(ImGui::Button("save image")) save_image(screen, RGB_CLAMPING, gamma);
+            if(ImGui::Button("save image")) save_image(screen, TONEMAP_RGB_CLAMPING, gamma);
             ImGui::SameLine();
             if(ImGui::Button("quit"))
                 *running = false;
@@ -257,7 +261,7 @@ public:
             bool new_obj = false;
             if(ImGui::Button("add sphere")) {
                 Material mat;
-                mat.texture = new NullTexture;
+                mat.texture = new ColorTexture;
 
                 Sphere* sphere = new Sphere;
                 sphere->set_material(mat);
@@ -267,36 +271,36 @@ public:
             ImGui::SameLine();
             if(ImGui::Button("add plane")) {
                 Material mat;
-                mat.texture = new NullTexture;
+                mat.texture = new ColorTexture;
 
                 Mesh* mesh = new Mesh;
                 *mesh = load_mesh_from("default_model/plane.obj");
-                mesh->update_material();
                 mesh->set_material(mat);
+                mesh->update_material();
                 oc->push_back(mesh);
                 new_obj = true;
             }
             ImGui::SameLine();
             if(ImGui::Button("add cube")) {
                 Material mat;
-                mat.texture = new NullTexture;
+                mat.texture = new ColorTexture;
 
                 Mesh* mesh = new Mesh;
                 *mesh = load_mesh_from("default_model/cube.obj");
-                mesh->update_material();
                 mesh->set_material(mat);
+                mesh->update_material();
                 oc->push_back(mesh);
                 new_obj = true;
             }
             ImGui::SameLine();
             if(ImGui::Button("add dodecahedron")) {
                 Material mat;
-                mat.texture = new NullTexture;
+                mat.texture = new ColorTexture;
 
                 Mesh* mesh = new Mesh;
                 *mesh = load_mesh_from("default_model/dodecahedron.obj");
-                mesh->update_material();
                 mesh->set_material(mat);
+                mesh->update_material();
                 oc->push_back(mesh);
                 new_obj = true;
             }
@@ -313,6 +317,14 @@ public:
                 txt += "mesh";
             ImGui::Text(txt.c_str());
 
+            Material mat = selecting_object->get_material();
+            Texture* texture = mat.texture;
+            ColorTexture* ctexture = nullptr;
+
+            if(texture->get_type() == TEX_COLOR) {
+                ctexture = dynamic_cast<ColorTexture*>(texture);
+            }
+
             // if select a new object
             if(prev_object != selecting_object) {
                 prev_object = selecting_object;
@@ -321,7 +333,6 @@ public:
                 Vec3 rot = selecting_object->get_rotation();
                 Vec3 scl = selecting_object->get_scale();
                 float rad = selecting_object->get_radius();
-                Material mat = selecting_object->get_material();
 
                 position[0] = pos.x;
                 position[1] = pos.y;
@@ -339,9 +350,12 @@ public:
 
                 radius = rad;
                 
-                color[0] = mat.color.x;
-                color[1] = mat.color.y;
-                color[2] = mat.color.z;
+                if(ctexture != nullptr) {
+                    Vec3 CCC = ctexture->color;
+                    color[0] = CCC.x;
+                    color[1] = CCC.y;
+                    color[2] = CCC.z;
+                }
 
 
                 emit_light = mat.emit_light;
@@ -367,7 +381,8 @@ public:
                 ImGui::Checkbox("uniform scaling", &uniform_scaling);
             }
             ImGui::Text("material");
-            ImGui::ColorEdit3("color", color);
+            if(texture->get_type() == TEX_COLOR)
+                ImGui::ColorEdit3("color", color);
             ImGui::Checkbox("emit light", &emit_light);
             if(emit_light)
                 ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
@@ -433,17 +448,21 @@ public:
             Vec3 new_color = Vec3(color[0], color[1], color[2]);
 
             Object* obj = selecting_object;
-            Material mat = obj->get_material();
+            mat = obj->get_material();
             bool scale_changed;
             if(obj->is_sphere())
                 scale_changed = obj->get_radius() != radius;
             else
                 scale_changed = obj->get_scale() != new_scl;
+            
+            bool color_changed = false;
+            if(ctexture != nullptr)
+                color_changed = new_color != ctexture->color;
 
             bool object_changed = obj->get_position() != new_pos
                                     or obj->get_rotation() != new_rot
                                     or scale_changed
-                                    or mat.color != new_color
+                                    or color_changed
                                     or mat.emit_light != emit_light
                                     or mat.emission_strength != emission_strength
                                     or mat.roughness != roughness
@@ -458,7 +477,10 @@ public:
                     obj->set_scale(new_scl);
                 obj->set_rotation(new_rot);
                 obj->set_position(new_pos);
-                mat.color = new_color;
+
+                if(ctexture != nullptr)
+                    ctexture->color = new_color;
+
                 mat.emit_light = emit_light;
                 mat.emission_strength = emission_strength;
                 mat.roughness = roughness;
@@ -525,7 +547,7 @@ public:
 
         ImGui::Render();
         SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData());
+        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
     }
     void destroy() {
@@ -538,3 +560,5 @@ public:
         SDL_Quit();
     }
 };
+
+#endif

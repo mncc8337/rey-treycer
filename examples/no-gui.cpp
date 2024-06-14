@@ -1,33 +1,30 @@
 #include "rey-treycer.h"
+#include "scenes.h"
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 #include <chrono>
 
-int main() {
+#include "image.h"
+
+int main(int argc, char** argv) {
     ReyTreycer rt(1280, 720);
 
-    // dice
-    ImageTexture dice_tex;
-    dice_tex.load_image("texture/dice.png");
-
-    Material cube_mat;
-    cube_mat.texture = &dice_tex;
-
-    Mesh mesh = load_mesh_from("default_model/cube-uv.obj");
-    mesh.set_material(cube_mat);
-    mesh.update_material();
-    rt.add_object(&mesh);
-
-    ProceduralTexture normal_map_tex;
-    normal_map_tex.set_function(&checker);
-    Material sphere_mat;
-    sphere_mat.texture = &normal_map_tex;
-
-    Sphere sphere;
-    sphere.set_material(sphere_mat);
-    sphere.set_position({0, 5, 0});
-    rt.add_object(&sphere);
+        if(argc > 1) {
+        if(std::string(argv[1]) == "cornell")
+            cornell_box(rt);
+        else if(std::string(argv[1]) == "textures")
+            all_textures(rt);
+        else if(std::string(argv[1]) == "all") {
+            cornell_box(rt);
+            all_textures(rt);
+        }
+        else {
+            std::cout << "invalid arguement\n";
+            return 1;
+        }
+    }
+    else all_textures(rt);
 
     // camera setting
     Camera* camera = &rt.camera;
@@ -39,8 +36,12 @@ int main() {
     camera->init();
 
     while(rt.rendered_count < 100) {
+        auto start = std::chrono::system_clock::now();
         rt.draw_frame();
-        std::cout << "frame " << rt.rendered_count << " took " << 0 << " ms\n";
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        
+        std::cout << "frame " << rt.rendered_count << " took " << (elapsed.count() * 1000) << " ms\n";
     }
     auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
@@ -50,7 +51,7 @@ int main() {
     oss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");
     str = "imgs/" + oss.str() + ".png";
     char *c = const_cast<char*>(str.c_str());
-    save_to_image(c, &rt.screen_color, RGB_CLAMPING, 1, rt.WIDTH, rt.HEIGHT);
+    save_to_image(c, &rt.screen_color, TONEMAP_RGB_CLAMPING, 1, rt.WIDTH, rt.HEIGHT);
 
     return 0;
 }

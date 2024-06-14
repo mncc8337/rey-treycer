@@ -1,8 +1,9 @@
-#pragma once
+#ifndef MATERIAL_H
+#define MATERIAL_H
+
 #include "texture.h"
 
 struct Material {
-    Vec3 color = WHITE;
     float roughness = 1.0f;
 
     bool emit_light = false;
@@ -16,3 +17,5 @@ struct Material {
 
     Texture* texture;
 };
+
+#endif

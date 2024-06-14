@@ -1,4 +1,6 @@
-#pragma once
+#ifndef REYTREYCER_H
+#define REYTREYCER_H
+
 #include <thread>
 #include <stack>
 
@@ -8,7 +10,7 @@
 class ReyTreycer {
 private:
     // TODO: better naming
-
+    
     // how many columns a single thread will draw
     int column_threads;
     // how many rows a single thread will draw
@@ -35,8 +37,8 @@ private:
         for(Object* obj: objects) {
             if(!obj->visible) continue;
 
-            // only calculate uv if object has texture
-            bool calculate_uv = obj->get_material().texture->has_texture();
+            // only calculate uv if it is not ColorTexture
+            bool calculate_uv = obj->get_material().texture->get_type() != TEX_COLOR;
 
             HitInfo h;
             if(obj->is_sphere())
@@ -92,7 +94,7 @@ private:
                     float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
                     bool cannot_refract = ri_ratio * sin_theta > 1.0;
-                    if((cannot_refract or reflectance(cos_theta, ri_ratio) > rand) and !equal(ri_ratio, 1.0f))
+                    if((cannot_refract or reflectance(cos_theta, ri_ratio) > rand) and !_equal(ri_ratio, 1.0f))
                         refraction_direction = specular_direction;
                     else {
                         refraction_direction = refraction(h.normal, old_direction, ri_ratio);
@@ -121,12 +123,8 @@ private:
                     ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
                 }
 
-                Vec3 color = h.material.color;
-
                 SurfaceInfo inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
-                if(h.material.texture->has_texture()) {
-                    color = h.material.texture->get_texture(inf);
-                }
+                Vec3 color = h.material.texture->get_texture(inf);
                 ray_color = ray_color * color;
 
                 if(h.material.emit_light) {
@@ -273,3 +271,5 @@ inline Vec3 checker(SurfaceInfo h) {
     int square_size = 10;
     return Vec3(0, 1, 0) * (sin(square_size * h.normal.x) * sin(square_size * h.normal.y) * sin(square_size * h.normal.z) > 0);
 }
+
+#endif

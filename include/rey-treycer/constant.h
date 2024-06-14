@@ -1,4 +1,6 @@
-#pragma once
+#ifndef CONSTANT_H
+#define CONSTANT_H
+
 #include <vector>
 #include "vec3.h"
 
@@ -27,3 +29,5 @@ const float RI_FLINT_GLASS = 1.66f;
 const float RI_DIAMOND = 2.4f;
 
 const std::vector<Vec3> v_height(MAX_HEIGHT, VEC3_ZERO);
+
+#endif

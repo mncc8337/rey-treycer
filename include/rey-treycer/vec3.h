@@ -1,4 +1,6 @@
-#pragma once
+#ifndef VEC3_H
+#define VEC3_H
+
 #include <math.h>
 
 class Vec3 {
@@ -87,3 +89,25 @@ inline Vec3 operator/(const float t, const Vec3 v) {
 inline Vec3 operator/(const Vec3 u, const Vec3 v) {
     return u * (1/v);
 }
+inline Vec3 lerp(const Vec3 u, const Vec3 v, const float t) {
+    return u * (1-t) + v * t;
+}
+inline Vec3 reflection(Vec3 n, Vec3 v) {
+    return v - 2 * v.dot(n) * n;
+}
+inline Vec3 refraction(Vec3& n, Vec3& uv, float etai_over_etat) {
+    auto cos_theta = fmin(-uv.dot(n), 1.0);
+    Vec3 r_out_perp =  etai_over_etat * (uv + cos_theta*n);
+    Vec3 r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.squared_length())) * n;
+    return r_out_perp + r_out_parallel;
+}
+// might move to other place later
+inline float reflectance(float cosine, float ri) {
+    // use Schlick's approximation for reflectance.
+    float r0 = (1-ri) / (1+ri);
+    r0 *= r0;
+    float icos = 1 - cosine;
+    return r0 + (1 - r0) * icos * icos * icos * icos * icos;
+}
+
+#endif

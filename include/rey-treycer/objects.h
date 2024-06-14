@@ -1,4 +1,6 @@
-#pragma once
+#ifndef OBJECTS_H
+#define OBJECTS_H
+
 #include <vector>
 #include "transformation.h"
 #include "material.h"
@@ -11,7 +13,7 @@ public:
     Material* material;
 };
 class Object {
-protected: // idk the difference of private and protected
+protected:
     Vec3 localx = Vec3(1, 0, 0);
     Vec3 localy = Vec3(0, 1, 0);
     Vec3 localz = Vec3(0, 0, 1);
@@ -158,3 +160,5 @@ public:
         return false;
     }
 };
+
+#endif

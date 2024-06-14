@@ -1,4 +1,6 @@
-#pragma once
+#ifndef TRANSFORMATION_H
+#define TRANSFORMATION_H
+
 #include "constant.h"
 
 // im lazy to implement matrix maths so i hard coded them xd
@@ -75,3 +77,5 @@ inline Vec3 _rotate_on_axis(Vec3 v, Vec3 u, float t) {
 inline Vec3 _scale(Vec3 u, Vec3 v) {
     return u * v;
 }
+
+#endif

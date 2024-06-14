@@ -1,6 +1,9 @@
-#pragma once
+#ifndef CAMERA_H
+#define CAMERA_H
+
 #include "objects.h"
 #include "ray.h"
+#include "rng.h"
 
 class Camera {
 private:
@@ -129,3 +132,5 @@ public:
         return -get_looking_direction().cross(get_right_direction());
     }
 };
+
+#endif

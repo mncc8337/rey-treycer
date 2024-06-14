@@ -1,4 +1,6 @@
-#pragma once
+#ifndef RAY_H
+#define RAY_H
+
 #include "objects.h"
 #include "helper.h"
 
@@ -30,7 +32,7 @@ struct Ray {
 
         // fix dark acne
         // i hate working with floating point
-        if(equal_zero(c)) c = 0;
+        if(_equal_zero(c)) c = 0;
 
         float discriminant = b * b - a * c;
 
@@ -101,7 +103,7 @@ struct Ray {
 
         // if determinant is near zero then raydir is perpendicular to normal
         // thus there is no hit
-        if(equal_zero(determinant)) return h;
+        if(_equal_zero(determinant)) return h;
 
         if(determinant < 0) {
             // if hitting both face is not allowed then skip
@@ -184,3 +186,5 @@ struct Ray {
         return closest;
     }
 };
+
+#endif

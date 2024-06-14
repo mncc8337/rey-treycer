@@ -1,6 +1,7 @@
 #include <SDL2/SDL_events.h>
 #include "rey-treycer.h"
 #include "gui.h"
+#include "scenes.h"
 
 int WIDTH = 320;
 int HEIGHT = 180;
@@ -74,10 +75,12 @@ void print_v3(Vec3 v) {
 }
 
 float main_thread_delta_time = 0;
-int main() {
+int main(int argc, char** argv) {
+    ColorTexture focal_plane_tex;
+    focal_plane_tex.color = Vec3(0.18, 0.5, 1.0);
+
     Material FOCAL_PLANE_MAT;
-    FOCAL_PLANE_MAT.texture = new NullTexture;
-    FOCAL_PLANE_MAT.color = Vec3(0.18, 0.5, 1.0);
+    FOCAL_PLANE_MAT.texture = &focal_plane_tex;
     FOCAL_PLANE_MAT.transparent = true;
     FOCAL_PLANE_MAT.refractive_index = RI_AIR;
 
@@ -89,86 +92,21 @@ int main() {
     FOCAL_PLANE.update_material();
     rt.add_object(&FOCAL_PLANE);
 
-    // cornell box
-    // ////////////////////////////
-
-    Mesh plane = load_mesh_from("default_model/plane.obj");
-    plane.set_scale({5, 5, 5});
-
-    Material mat_red;
-    mat_red.color = RED;
-    mat_red.texture = new NullTexture;
-
-    Material mat_green;
-    mat_green.color = GREEN;
-    mat_green.texture = new NullTexture;
-
-    Material mat_white;
-    mat_white.color = WHITE;
-    mat_white.texture = new NullTexture;
-
-    Material mat_light;
-    mat_light.color = WHITE;
-    mat_light.emit_light = true;
-    mat_light.emission_strength = 5.0f;
-    mat_light.texture = new NullTexture;
-
-    Mesh floor = plane;
-    floor.set_position({0, -5, 0});
-    floor.set_material(mat_white);
-    floor.update_material();
-    floor.calculate_AABB();
-    rt.add_object(&floor);
-
-    Mesh ceil = plane;
-    ceil.set_rotation({M_PI, 0, 0});
-    ceil.set_position({0, 5, 0});
-    ceil.set_material(mat_white);
-    ceil.update_material();
-    ceil.calculate_AABB();
-    rt.add_object(&ceil);
-
-    Mesh wall_back = plane;
-    wall_back.set_rotation({M_PI/2, 0, 0});
-    wall_back.set_position({0, 0, -5});
-    wall_back.set_material(mat_white);
-    wall_back.update_material();
-    wall_back.calculate_AABB();
-    rt.add_object(&wall_back);
-
-    Mesh wall_front = plane;
-    wall_front.set_rotation({M_PI/2, M_PI, 0});
-    wall_front.set_position({0, 0, 5});
-    wall_front.set_material(mat_white);
-    wall_front.update_material();
-    wall_front.calculate_AABB();
-    rt.add_object(&wall_front);
-
-    Mesh wall_red = plane;
-    wall_red.set_rotation({0, 0, -M_PI/2});
-    wall_red.set_position({-5, 0, 0});
-    wall_red.set_material(mat_red);
-    wall_red.update_material();
-    wall_red.calculate_AABB();
-    rt.add_object(&wall_red);
-
-    Mesh wall_green = plane;
-    wall_green.set_rotation({0, 0, M_PI/2});
-    wall_green.set_position({5, 0, 0});
-    wall_green.set_material(mat_green);
-    wall_green.update_material();
-    wall_green.calculate_AABB();
-    rt.add_object(&wall_green);
-
-    Mesh light = load_mesh_from("default_model/cube.obj");
-    light.set_scale({2.5f, 0.1f, 2.5f});
-    light.set_position({0, 5, 0});
-    light.set_material(mat_light);
-    light.update_material();
-    light.calculate_AABB();
-    rt.add_object(&light);
-
-    // ////////////////////////////
+    if(argc > 1) {
+        if(std::string(argv[1]) == "cornell")
+            cornell_box(rt);
+        else if(std::string(argv[1]) == "textures")
+            all_textures(rt);
+        else if(std::string(argv[1]) == "all") {
+            cornell_box(rt);
+            all_textures(rt);
+        }
+        else {
+            std::cout << "invalid arguement\n";
+            return 1;
+        }
+    }
+    else cornell_box(rt);
 
     // camera setting
     camera->position.z = 10;

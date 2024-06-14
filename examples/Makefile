@@ -3,10 +3,10 @@ EXE = gui no-gui
 IMGUI_DIR = ./imgui
 SOURCES = $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp
 SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp $(IMGUI_DIR)/backends/imgui_impl_sdlrenderer2.cpp
-OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES)))) $(addsuffix .o, $(EXE))
+OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 UNAME_S := $(shell uname -s)
 
-CXXFLAGS = -std=c++17 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I../include -I../include/rey-treycer -I./
+CXXFLAGS = -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I../include -I../include/rey-treycer -I./
 CXXFLAGS += -g -Wall -Wformat -Ofast
 LIBS = -lSDL2_image
 
@@ -54,5 +54,8 @@ gui: gui.o $(OBJS)
 no-gui: no-gui.o $(OBJS)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LIBS)
 
+clean-exe:
+	rm -f $(EXE) $(addsuffix .o, $(EXE))
+
 clean:
-	rm -f $(EXE) $(OBJS)
+	rm -f $(EXE) $(OBJS) $(addsuffix .o, $(EXE))
