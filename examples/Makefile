@@ -6,7 +6,7 @@ SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp $(IMGUI_DIR)/backends/imgui
 OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 UNAME_S := $(shell uname -s)
 
-CXXFLAGS = -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I../include -I../include/rey-treycer -I./
+CXXFLAGS = -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I../include/rey-treycer -I./
 CXXFLAGS += -g -Wall -Wformat -Ofast
 LIBS = -lSDL2_image
 
