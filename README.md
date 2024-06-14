@@ -1,13 +1,16 @@
 # Rey Treycer
-a simple ray tracer running on CPU i made when bored
-## build dependencies
+a simple header only ray tracer library running on CPU i made when bored
+> [!NOTE]  
+> the library can only render the image and store it on memory. to save it as file you need to use external library. see `examples/image.h` for how it is done using `stb`.
+## examples
+to build the examples on `./examples` you will need  
 - [SDL2](https://www.libsdl.org/)
 - [imgui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb), which are availabled as submodules
-## build examples
-- cd into `./examples` then run `make all`  
-all generated images are on `./examples/imgs`
+after installed all dependencies just cd into `./examples` then run `make all` to build  
+you can run the binary (`gui` and `no-gui`) with `cornell`, `textures` or `all` as argument to switch the scene. for example `gui textures`  
+all generated images are on `./examples/imgs`  
 > [!WARNING]  
-> `gui.h` is very messy and may has bad practises, open it as your own risk!
+> `gui.h` is very messy and has many bad practises, you should not follow what are written here!
 ## usage
 i will add this tomorrow i swear
 ## known bugs
