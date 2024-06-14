@@ -5,7 +5,7 @@ a simple header only ray tracer library running on CPU i made when bored
 ## examples
 to build the examples on `./examples` you will need  
 - [SDL2](https://www.libsdl.org/)
-- [imgui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb), which are availabled as submodules
+- [imgui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb), which are availabled as submodules  
 after installed all dependencies just cd into `./examples` then run `make all` to build  
 you can run the binary (`gui` and `no-gui`) with `cornell`, `textures` or `all` as argument to switch the scene. for example `gui textures`  
 all generated images are on `./examples/imgs`  
