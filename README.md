@@ -13,19 +13,20 @@ i will add this tomorrow i swear
 ## known bugs
 havent found any, yet.
 ## TODO
-[ ] remake smoke
-[ ] add real matrix maths
-[ ] add BVH
-[ ] add more material options: normals/roughness based on image
-[ ] remove trash codes
+- [ ] remake smoke
+- [ ] add real matrix maths
+- [ ] add BVH
+- [ ] add more material options: normals/roughness based on image
+- [ ] remove trash codes
+
 ## gallery
-<p float="left">
-    <img src="imgs/scene-8.bmp" width=47%/>
-    <img src="imgs/defocus-effect-2.bmp" width=47%/>
-    <img src="imgs/defocus-effect-1.bmp" width=47%/>
-    <img src="imgs/refraction-2.bmp" width=47%/>
-    <img src="imgs/scene-6.bmp" width=47%/>
-    <img src="imgs/scene-0.bmp" width=47%/>
-</p><br>
+<p>
+    <img src="imgs/scene-8.bmp" width=47%>
+    <img src="imgs/defocus-effect-2.bmp" width=47%>
+    <img src="imgs/defocus-effect-1.bmp" width=47%>
+    <img src="imgs/refraction-2.bmp" width=47%>
+    <img src="imgs/scene-6.bmp" width=47%>
+    <img src="imgs/scene-0.bmp" width=47%>
+
 ## learning resources
 - https://raytracing.github.io
