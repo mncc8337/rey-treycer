@@ -10,8 +10,6 @@ to build the examples on `./examples` you will need
 after installed all dependencies just cd into `./examples` then run `make all` to build  
 you can run the binary (`gui` and `no-gui`) with `cornell`, `textures` or `all` as argument to switch the scene. for example `gui textures`  
 all generated images are on `./examples/imgs`  
-> [!WARNING]  
-> `gui.h` is very messy and has many bad practises, you should not follow what are written here!
 ## usage
 i will add this tomorrow i swear
 ## known bugs
