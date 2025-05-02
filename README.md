@@ -7,13 +7,16 @@ to build the examples on `./examples` you will need
 - [SDL2](https://www.libsdl.org/)
 - [imgui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb), which are availabled as submodules
   
-after installed all dependencies just cd into `./examples` then run `make all` to build  
-you can run the binary (`gui` and `no-gui`) with `cornell`, `textures` or `all` as argument to switch the scene. for example `gui textures`  
-all generated images are on `./examples/imgs`  
-## usage
-i will add this tomorrow i swear
-## known bugs
-havent found any, yet.
+to build just  
+```
+cd examples
+make all
+
+```  
+and then `./bin/gui` or `./bin/no-gui`
+> [!NOTE]  
+> you can add `cornell`, `textures` or `all` as argument when running the binaries to switch default scene
+> all generated images are on `/examples/images`
 ## TODO
 - [ ] remake smoke
 - [ ] add real matrix maths
@@ -29,6 +32,6 @@ havent found any, yet.
     <img src="imgs/refraction-2.bmp" width=47%>
     <img src="imgs/scene-6.bmp" width=47%>
     <img src="imgs/scene-0.bmp" width=47%>
-
+</p>
 ## learning resources
 - https://raytracing.github.io
