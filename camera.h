@@ -1,7 +1,6 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include "objects.h"
 #include "ray.h"
 #include "rng.h"
 

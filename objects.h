@@ -100,8 +100,8 @@ public:
     }
     // calculate Axis Aligned Bounding Box to optimize ray-mesh intersection
     void calculate_AABB() {
-        Vec3 min =  Vec3(INFINITY, INFINITY, INFINITY);
-        Vec3 max = -Vec3(INFINITY, INFINITY, INFINITY);
+        Vec3 min =  Vec3(FLOAT_MAX, FLOAT_MAX, FLOAT_MAX);
+        Vec3 max = -Vec3(FLOAT_MAX, FLOAT_MAX, FLOAT_MAX);
         for(auto tri: tris)
             for(int i = 0; i < 3; i++) {
                 min.x = fmin(min.x, tri.vert[i].x);

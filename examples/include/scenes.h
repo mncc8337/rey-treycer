@@ -30,7 +30,6 @@ inline void cornell_box(ReyTreycer& rt) {
     mat_white.texture = tex_white;
 
     Material mat_light;
-    mat_light.emit_light = true;
     mat_light.emission_strength = 5.0f;
     mat_light.texture = tex_white;
 

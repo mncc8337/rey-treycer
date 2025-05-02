@@ -5,16 +5,9 @@
 
 struct Material {
     float roughness = 1.0f;
-
-    bool emit_light = false;
     float emission_strength = 0.0f;
-
-    bool transparent = false;
-    float refractive_index = RI_GLASS;
-
-    bool smoke = false;
-    float density = 0.5f;
-
+    float ior = -1.0; // set to <0.0 to disable
+    float volume_density = 1.0f; // set to >1.0 to disable
     Texture* texture;
 };
 

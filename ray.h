@@ -1,13 +1,14 @@
 #ifndef RAY_H
 #define RAY_H
 
+#include "constant.h"
 #include "objects.h"
 #include "helper.h"
 
 struct HitInfo {
     bool did_hit = false;
     Vec3 point = VEC3_ZERO;
-    float distance = INFINITY;
+    float distance = FLOAT_MAX;
     bool front_face = true;
     Vec3 normal = VEC3_ZERO;
     float u, v;
@@ -48,7 +49,7 @@ struct Ray {
         
         // there is no way a non transparent sphere can have a light ray inside it
         Material mat = sphere->get_material();
-        bool transparent = mat.transparent or mat.smoke;
+        bool transparent = (mat.ior > 0.0) or (mat.volume_density  < 1.0);
         if(!transparent and inside_object) return h;
 
         // if hit the sphere
@@ -63,7 +64,7 @@ struct Ray {
                 distance = (-b + sqrt_discriminant) / a;
 
             // if the distance is too small/negative or exceeding max_range then there is no hit
-            if(distance < 1e-6 or distance > max_range) return h;
+            if(distance < EPSILON or distance > max_range) return h;
 
             h.did_hit = true;
             h.distance = distance;
@@ -169,7 +170,7 @@ struct Ray {
 
         HitInfo closest;
         closest.did_hit = false;
-        closest.distance = INFINITY;
+        closest.distance = FLOAT_MAX;
         // assume that mesh.calculate_AABB() is called at least once
         // if not collide with AABB then skip
         if(!cast_to_AABB(AABB_min, AABB_max)) return closest;
@@ -177,7 +178,7 @@ struct Ray {
         // find closest hit
         for(int i = 0; i < (int)mesh->tris.size(); i++) {
             Material mat = mesh->get_material();
-            bool transparent = mat.transparent or mat.smoke;
+            bool transparent = (mat.ior > 0.0) or (mat.volume_density  < 1.0);
             HitInfo h = cast_to_triangle(&(mesh->tris[i]), transparent, calculate_uv);
             if(h.did_hit and h.distance < closest.distance)
                 closest = h;

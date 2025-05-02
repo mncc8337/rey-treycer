@@ -81,8 +81,7 @@ int main(int argc, char** argv) {
 
     Material FOCAL_PLANE_MAT;
     FOCAL_PLANE_MAT.texture = &focal_plane_tex;
-    FOCAL_PLANE_MAT.transparent = true;
-    FOCAL_PLANE_MAT.refractive_index = RI_AIR;
+    FOCAL_PLANE_MAT.ior = RI_AIR;
 
     // add a plane to visualize focal length
     // it will be used in the gui app with the index 0

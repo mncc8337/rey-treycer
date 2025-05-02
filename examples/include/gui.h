@@ -34,14 +34,11 @@ private:
     // object material properties
     float color[3];
     float emission_strength = 0.0f;
-    bool emit_light = false;
     float roughness = 1.0f;
-    bool transparent = false;
-    float refractive_index = 0;
-    const char* refractive_index_items[6] = {"air", "water", "glass", "flint glass", "diamond", "self-define"};
-    int refractive_index_current_item = 1;
-    bool smoke = false;
-    float density = 1.0f;
+    float ior = 0;
+    const char* ior_items[7] = {"no transparent", "air", "water", "glass", "flint glass", "diamond", "self-define"};
+    int ior_current_item = 0;
+    float volume_density = 1.0f;
 
     // editor settings
     bool show_crosshair = false;
@@ -242,13 +239,13 @@ public:
         }
 
         if(ImGui::CollapsingHeader("camera")) {
-            ImGui::DragFloat("gamma correction", &gamma, 0.01f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("gamma correction", &gamma, 0.01f, 0.0f, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::SliderFloat("FOV", &(camera->FOV), 1.0f, 179.0f);
-            ImGui::DragFloat("focus distance", &(camera->focus_distance), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("aperture", &(camera->aperture), 0.001f, 0, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("diverge strength", &(camera->diverge_strength), 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("max range", &(camera->max_range), 1, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("focus distance", &(camera->focus_distance), 0.1f, 0.0f, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("aperture", &(camera->aperture), 0.001f, 0, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("diverge strength", &(camera->diverge_strength), 0.1f, 0.0f, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("max range", &(camera->max_range), 1, 0.0f, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::InputInt("max ray bounce", &(camera->max_ray_bounce_count), 1);
             camera->max_ray_bounce_count = fmax(camera->max_ray_bounce_count, 1);
 
@@ -358,16 +355,10 @@ public:
                 }
 
 
-                emit_light = mat.emit_light;
                 emission_strength = mat.emission_strength;
-
                 roughness = mat.roughness;
-
-                transparent = mat.transparent;
-                refractive_index = mat.refractive_index;
-
-                smoke = mat.smoke;
-                density = mat.density;
+                ior = mat.ior;
+                volume_density = mat.volume_density;
             }
 
             ImGui::Text("transform");
@@ -377,43 +368,39 @@ public:
                 ImGui::DragFloat("radius", &radius, 0.5f);
             }
             else {
-                ImGui::DragFloat3("scaling", scale, 0.1f, 0.001f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::DragFloat3("scaling", scale, 0.1f, 0.001f, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
                 ImGui::Checkbox("uniform scaling", &uniform_scaling);
             }
             ImGui::Text("material");
             if(texture->get_type() == TEX_COLOR)
                 ImGui::ColorEdit3("color", color);
-            ImGui::Checkbox("emit light", &emit_light);
-            if(emit_light)
-                ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, INFINITY, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("emission_strength", &emission_strength, 0.1f, 0.0f, FLOAT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::SliderFloat("roughness", &roughness, 0, 1);
-            ImGui::Checkbox("transparent", &transparent);
-            if(transparent) {
-                ImGui::Combo("refractive index", &refractive_index_current_item, refractive_index_items, 6);
-                switch(refractive_index_current_item) {
-                    case 0:
-                        refractive_index = RI_AIR;
-                        break;
-                    case 1:
-                        refractive_index = RI_WATER;
-                        break;
-                    case 2:
-                        refractive_index = RI_GLASS;
-                        break;
-                    case 3:
-                        refractive_index = RI_FLINT_GLASS;
-                        break;
-                    case 4:
-                        refractive_index = RI_DIAMOND;
-                        break;
-                    case 5:
-                        ImGui::InputFloat(" ", &refractive_index, 0.01f);
-                        break;
-                }
+            ImGui::Combo("index of refractive", &ior_current_item, ior_items, 7);
+            switch(ior_current_item) {
+                case 0:
+                    ior = -1.0;
+                    break;
+                case 1:
+                    ior = RI_AIR;
+                    break;
+                case 2:
+                    ior = RI_WATER;
+                    break;
+                case 3:
+                    ior = RI_GLASS;
+                    break;
+                case 4:
+                    ior = RI_FLINT_GLASS;
+                    break;
+                case 5:
+                    ior = RI_DIAMOND;
+                    break;
+                case 6:
+                    ImGui::InputFloat(" ", &ior, 0.01f);
+                    break;
             }
-            ImGui::Checkbox("smoke", &smoke);
-            if(smoke)
-                ImGui::DragFloat("smoke density", &density, 0.001f, 0.00001f, INFINITY, "%.5f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("smoke density", &volume_density, 0.001f, 0.00001f, FLOAT_MAX, "%.5f", ImGuiSliderFlags_AlwaysClamp);
 
             if(uniform_scaling) {
                 int difference_count = (scale[0] != scale[1]) + (scale[1] != scale[2]) + (scale[0] != scale[2]);
@@ -463,13 +450,10 @@ public:
                                     or obj->get_rotation() != new_rot
                                     or scale_changed
                                     or color_changed
-                                    or mat.emit_light != emit_light
                                     or mat.emission_strength != emission_strength
                                     or mat.roughness != roughness
-                                    or mat.transparent != transparent
-                                    or mat.refractive_index != refractive_index
-                                    or mat.smoke != smoke
-                                    or mat.density != density;
+                                    or mat.ior != ior
+                                    or mat.volume_density != volume_density;
             if(object_changed) {
                 if(obj->is_sphere())
                     obj->set_radius(radius);
@@ -481,13 +465,10 @@ public:
                 if(ctexture != nullptr)
                     ctexture->color = new_color;
 
-                mat.emit_light = emit_light;
                 mat.emission_strength = emission_strength;
                 mat.roughness = roughness;
-                mat.transparent = transparent;
-                mat.refractive_index = refractive_index;
-                mat.smoke = smoke;
-                mat.density = density;
+                mat.ior = ior;
+                mat.volume_density = volume_density;
                 obj->set_material(mat);
                 obj->calculate_AABB();
                 *frame_num = 0;

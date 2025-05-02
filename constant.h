@@ -9,7 +9,8 @@
 const int MAX_WIDTH = 2000;
 const int MAX_HEIGHT = 2000;
 
-const float EPSILON = 1e-6;
+const float EPSILON = 1e-4;
+const float FLOAT_MAX = 3.40282347e38;
 
 const Vec3 BLACK(0, 0, 0);
 const Vec3 WHITE(1, 1, 1);

@@ -5,6 +5,7 @@
 #include <stack>
 
 #include "camera.h"
+#include "constant.h"
 #include "objects.h"
 
 class ReyTreycer {
@@ -31,7 +32,7 @@ private:
     // get closest hit of a ray
     HitInfo ray_collision(Ray* ray) {
         HitInfo closest_hit;
-        closest_hit.distance = INFINITY;
+        closest_hit.distance = FLOAT_MAX;
 
         // find the first intersect point in all objects
         for(Object* obj: objects) {
@@ -61,81 +62,60 @@ private:
         Vec3 ray_color = WHITE;
         Vec3 incomming_light = BLACK;
 
-        float current_refractive_index = environment_refractive_index;
-        std::stack<float> ri_difference_stack;
-
         Ray ray = camera.ray(x, y);
+
+        std::stack<float> ior_stack;
+        ior_stack.push(environment_ior);
 
         for(int i = 0; i <= camera.max_ray_bounce_count; i++) {
             HitInfo h = ray_collision(&ray);
 
-            if(h.did_hit) {
-                Vec3 old_direction = ray.direction;
-                ray.origin = h.point;
-                Vec3 diffuse_direction = (h.normal + random_direction()).normalize();
-                Vec3 specular_direction = reflection(h.normal, old_direction);
-
-                float rand = random_val();
-
-                if(h.material.transparent) {
-                    // how this working
-                    // when entering another environment (hitting front face)
-                    // we add the RI difference to stack and add the difference to the current RI
-                    // when leaving (hitting back face)
-                    // we remove the top RI difference from the stack and subtract it from current RI
-                    // we know we are finally getting out of to the normal environment when the stack is empty
-                    // this only work if all the objects are fully overlapping
-                    // partly overlapping is not supported
-
-                    Vec3 refraction_direction(0, 0, 0);
-                    float ri_ratio = current_refractive_index / h.material.refractive_index;
-
-                    float cos_theta = -ray.direction.dot(h.normal);
-                    float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-
-                    bool cannot_refract = ri_ratio * sin_theta > 1.0;
-                    if((cannot_refract or reflectance(cos_theta, ri_ratio) > rand) and !_equal(ri_ratio, 1.0f))
-                        refraction_direction = specular_direction;
-                    else {
-                        refraction_direction = refraction(h.normal, old_direction, ri_ratio);
-                        float ri_difference = h.material.refractive_index - current_refractive_index;
-
-                        if(h.front_face) {
-                            current_refractive_index += ri_difference;
-                            ri_difference_stack.push(ri_difference);
-                        }
-                        else {
-                            // if the camera is inside a transparent object
-                            // then we need to manually set it to environment RI to avoid errors
-                            if(ri_difference_stack.empty()) {
-                                current_refractive_index = environment_refractive_index;
-                            }
-                            else {
-                                current_refractive_index -= ri_difference_stack.top();
-                                ri_difference_stack.pop();
-                            }
-                        }
-                    }
-
-                    ray.direction = refraction_direction;
-                }
-                else {
-                    ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
-                }
-
-                SurfaceInfo inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
-                Vec3 color = h.material.texture->get_texture(inf);
-                ray_color = ray_color * color;
-
-                if(h.material.emit_light) {
-                    incomming_light += ray_color * color * h.material.emission_strength;
-                }
-            }
-            else {
+            if(!h.did_hit) {
                 incomming_light += ray_color * get_environment_light(ray.direction);
                 break;
             }
+
+            ray.origin = h.point + ray.direction * EPSILON;
+
+            float rand = random_val();
+
+            if(h.material.ior > 0.0) {
+                float current_ior = ior_stack.top();
+                float ior_ratio = current_ior / h.material.ior;
+                if(!h.front_face) {
+                    if(ior_stack.size() > 1) {
+                        ior_stack.pop();
+                    }
+                    ior_ratio = current_ior / ior_stack.top();
+                }
+
+                float cos_theta = abs(ray.direction.dot(h.normal));
+                bool cannot_refract = ior_ratio * ior_ratio * (1.0 - cos_theta * cos_theta) > 1.0;
+
+                if((cannot_refract or reflectance(cos_theta, ior_ratio) > rand) and !_equal(ior_ratio, 1.0f)) {
+                    ray.direction = reflection(h.normal, ray.direction);
+                    if(!h.front_face) {
+                        ior_stack.push(current_ior);
+                    }
+                } else {
+                    ray.direction = refraction(h.normal, ray.direction, ior_ratio);
+                    if(h.front_face) {
+                        ior_stack.push(h.material.ior);
+                    }
+                }
+            }
+            else {
+                Vec3 diffuse_direction = (h.normal + random_direction()).normalize();
+                Vec3 specular_direction = reflection(h.normal, ray.direction);
+                ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
+            }
+
+            SurfaceInfo inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
+            Vec3 color = h.material.texture->get_texture(inf);
+            ray_color = ray_color * color;
+            incomming_light += ray_color * h.material.emission_strength;
         }
+
         return incomming_light;
     }
 
@@ -178,7 +158,7 @@ public:
     std::vector<std::vector<Vec3>> screen_color;
 
     // environment variable
-    float environment_refractive_index = RI_AIR;
+    float environment_ior = RI_AIR;
     Vec3 up_sky_color = Vec3(0.51f, 0.7f, 1.0f) * 1.0f;
     Vec3 down_sky_color = WHITE;
 

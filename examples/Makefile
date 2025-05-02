@@ -72,8 +72,5 @@ $(BIN_DIR)/gui: $(BIN_DIR)/gui.o $(OBJS)
 $(BIN_DIR)/no-gui: $(BIN_DIR)/no-gui.o $(OBJS)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LIBS)
 
-clean-exe:
-	rm -f $(addprefix $(BIN_DIR)/, $(EXE)) $(addprefix $(BIN_DIR)/, $(addsuffix .o, $(EXE)))
-
 clean:
 	rm -rf $(BIN_DIR)
