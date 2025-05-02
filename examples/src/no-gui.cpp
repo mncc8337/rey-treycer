@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
     camera->ray_per_pixel = 1;
     camera->init();
 
+    // render 100 samples
     while(rt.rendered_count < 100) {
         auto start = std::chrono::system_clock::now();
         rt.draw_frame();
@@ -46,6 +47,7 @@ int main(int argc, char** argv) {
     auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
 
+    // save as image
     std::string str;
     std::ostringstream oss;
     oss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");

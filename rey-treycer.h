@@ -7,6 +7,7 @@
 #include "camera.h"
 #include "constant.h"
 #include "objects.h"
+#include "rng.h"
 
 class ReyTreycer {
 private:
@@ -67,7 +68,11 @@ private:
         std::stack<float> ior_stack;
         ior_stack.push(environment_ior);
 
-        for(int i = 0; i <= camera.max_ray_bounce_count; i++) {
+        float surrounding_volume_density = 0.0;
+        Vec3 surrounding_volume_radiance(0.0, 0.0, 0.0);
+
+        int bounces = 0;
+        while(bounces < camera.max_ray_bounce_count) {
             HitInfo h = ray_collision(&ray);
 
             if(!h.did_hit) {
@@ -75,9 +80,41 @@ private:
                 break;
             }
 
-            ray.origin = h.point + ray.direction * EPSILON;
+            SurfaceInfo inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
+            Vec3 color = h.material.texture->get_texture(inf);
 
-            float rand = random_val();
+            if(surrounding_volume_density > 0.0) {
+                float scattering_distance = -log(random_val()) / surrounding_volume_density;
+
+                if(scattering_distance < h.distance) {
+                    // hit the particle
+                    float transmittance = exp(-surrounding_volume_density * scattering_distance);
+                    Vec3 radiance = surrounding_volume_radiance * (1.0 - transmittance);
+                    incomming_light += ray_color * radiance;
+                    ray_color *= transmittance;
+                    ray.origin += ray.direction * scattering_distance;
+                    ray.direction = random_direction();
+                    bounces++;
+                    continue;
+                }
+            }
+
+            if(h.material.volume_density < 1.0) {
+                if(h.front_face) {
+                    surrounding_volume_density += h.material.volume_density;
+                    surrounding_volume_radiance += h.material.emission_strength * color;
+                } else {
+                    surrounding_volume_density -= h.material.volume_density;
+                    surrounding_volume_radiance -= h.material.emission_strength * color;
+                    if(surrounding_volume_density < 0.0) {
+                        surrounding_volume_density = 0.0;
+                        surrounding_volume_radiance = VEC3_ZERO;
+                    }
+                }
+                ray.origin = h.point + ray.direction * EPSILON;
+                // recalculate again to account for smoke
+                continue;
+            }
 
             if(h.material.ior > 0.0) {
                 float current_ior = ior_stack.top();
@@ -92,9 +129,9 @@ private:
                 float cos_theta = abs(ray.direction.dot(h.normal));
                 bool cannot_refract = ior_ratio * ior_ratio * (1.0 - cos_theta * cos_theta) > 1.0;
 
-                if((cannot_refract or reflectance(cos_theta, ior_ratio) > rand) and !_equal(ior_ratio, 1.0f)) {
+                if((cannot_refract or reflectance(cos_theta, ior_ratio) > random_val()) and !_equal(ior_ratio, 1.0f)) {
                     ray.direction = reflection(h.normal, ray.direction);
-                    if(!h.front_face) {
+                    if(!h.front_face and ior_stack.size() >= 1) {
                         ior_stack.push(current_ior);
                     }
                 } else {
@@ -110,10 +147,12 @@ private:
                 ray.direction = lerp(specular_direction, diffuse_direction, h.material.roughness);
             }
 
-            SurfaceInfo inf; inf.u = h.u; inf.v = h.v; inf.normal = h.normal;
-            Vec3 color = h.material.texture->get_texture(inf);
+            ray.origin = h.point + ray.direction * EPSILON;
+
             ray_color = ray_color * color;
             incomming_light += ray_color * h.material.emission_strength;
+
+            bounces++;
         }
 
         return incomming_light;

@@ -2,7 +2,18 @@
 a simple header only ray tracer library running on CPU i made when bored
 > [!NOTE]  
 > the library can only render the image and store it on memory. to save it as file you need to use external library. see `examples/image.h` for how it is done using `stb`.
+## features
+this library is capable of rendering:
+- reflection
+- refraction
+- light sources
+- triangle meshs
+- custom/image textures
+- smoke volumes
 ## examples
+> [!TIP]  
+> `examples/src/no-gui.cpp`, `examples/include/image.h` and `examples/include/scenes.h` are solid examples on how to set up scenes, objects and the ray tracer and saving images using`stb`. you should have a look at them.
+  
 to build the examples on `./examples` you will need  
 - [SDL2](https://www.libsdl.org/)
 - [imgui](https://github.com/ocornut/imgui) and [stb](https://github.com/nothings/stb), which are availabled as submodules
@@ -16,9 +27,8 @@ make all
 and then `./bin/gui` or `./bin/no-gui`
 > [!NOTE]  
 > you can add `cornell`, `textures` or `all` as argument when running the binaries to switch default scene
-> all generated images are on `/examples/images`
+> all generated images are on `/examples/imgs`
 ## TODO
-- [ ] remake smoke
 - [ ] add real matrix maths
 - [ ] add BVH
 - [ ] add more material options: normals/roughness based on image

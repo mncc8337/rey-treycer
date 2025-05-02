@@ -54,6 +54,7 @@ inline Vec3 gamma_correct(Vec3 color, float t) {
 }
 
 // load a mesh from a *.obj file, simplified
+// only support triangle mesh
 inline Mesh load_mesh_from(std::string filename) {
     Mesh out;
 

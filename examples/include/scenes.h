@@ -9,6 +9,10 @@
 // if created in main function you dont need the new keyword because it will remain
 // until the end of the program
 
+// after setting a mesh's transformation (position, rotation, scale)
+// you need to run calculate_AABB() to render it properly
+// you also need to run update_material() after set_material()
+
 inline void cornell_box(ReyTreycer& rt) {
     Mesh plane = load_mesh_from("access/default_model/plane.obj");
     plane.set_scale({5, 5, 5});
