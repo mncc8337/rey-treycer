@@ -1,15 +1,8 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
-#ifndef STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
-#endif
-
-#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
-#endif
 
 #include <vector>
 #include "vec3.h"
@@ -38,7 +31,7 @@ inline void save_to_image(char* name, std::vector<std::vector<Vec3>>* colors, in
     stbi_write_png(name, WIDTH, HEIGHT, 3, data, WIDTH * 3);
 }
 
-unsigned char* load_image(const char* chr, int* image_width, int* image_height, int* channels) {
+inline unsigned char* load_image(const char* chr, int* image_width, int* image_height, int* channels) {
     return stbi_load(chr, image_width, image_height, channels, 0);
 }
 

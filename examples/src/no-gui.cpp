@@ -10,7 +10,7 @@
 int main(int argc, char** argv) {
     ReyTreycer rt(1280, 720);
 
-        if(argc > 1) {
+    if(argc > 1) {
         if(std::string(argv[1]) == "cornell")
             cornell_box(rt);
         else if(std::string(argv[1]) == "textures")

@@ -274,7 +274,7 @@ public:
                 mat.texture = new ColorTexture;
 
                 Mesh* mesh = new Mesh;
-                *mesh = load_mesh_from("default_model/plane.obj");
+                *mesh = load_mesh_from("access/default_model/plane.obj");
                 mesh->set_material(mat);
                 mesh->update_material();
                 oc->push_back(mesh);
@@ -286,7 +286,7 @@ public:
                 mat.texture = new ColorTexture;
 
                 Mesh* mesh = new Mesh;
-                *mesh = load_mesh_from("default_model/cube.obj");
+                *mesh = load_mesh_from("access/default_model/cube.obj");
                 mesh->set_material(mat);
                 mesh->update_material();
                 oc->push_back(mesh);
@@ -298,7 +298,7 @@ public:
                 mat.texture = new ColorTexture;
 
                 Mesh* mesh = new Mesh;
-                *mesh = load_mesh_from("default_model/dodecahedron.obj");
+                *mesh = load_mesh_from("access/default_model/dodecahedron.obj");
                 mesh->set_material(mat);
                 mesh->update_material();
                 oc->push_back(mesh);

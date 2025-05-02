@@ -1,6 +1,5 @@
 /.vscode
-/imgui.ini
-/*.o
-/main
+imgui.ini
 /examples/imgs/*
-/examples/*.o
+/examples/bin
+/examples/compile_commands.json

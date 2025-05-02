@@ -2,6 +2,8 @@
 #define TEXTURE_H
 
 #include <functional>
+#include "vec3.h"
+#include "constant.h"
 
 enum TEXTURE {
     TEX_NULL,

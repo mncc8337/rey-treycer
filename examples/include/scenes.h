@@ -10,7 +10,7 @@
 // until the end of the program
 
 inline void cornell_box(ReyTreycer& rt) {
-    Mesh plane = load_mesh_from("default_model/plane.obj");
+    Mesh plane = load_mesh_from("access/default_model/plane.obj");
     plane.set_scale({5, 5, 5});
 
     ColorTexture* tex_red = new ColorTexture;
@@ -82,7 +82,7 @@ inline void cornell_box(ReyTreycer& rt) {
     rt.add_object(wall_green);
 
     Mesh* light = new Mesh;
-    *light = load_mesh_from("default_model/cube.obj");
+    *light = load_mesh_from("access/default_model/cube.obj");
     light->set_scale({2.5f, 0.1f, 2.5f});
     light->set_position({0, 5, 0});
     light->set_material(mat_light);
@@ -94,14 +94,14 @@ inline void cornell_box(ReyTreycer& rt) {
 inline void all_textures(ReyTreycer& rt) {
     // dice
     ImageTexture* dice_tex = new ImageTexture;
-    dice_tex->pixel_data = load_image("texture/dice.png",
+    dice_tex->pixel_data = load_image("access/texture/dice.png",
                                       &(dice_tex->image_width), &(dice_tex->image_height),
                                       &(dice_tex->channels));
     Material cube_mat;
     cube_mat.texture = dice_tex;
 
     Mesh* cube = new Mesh;
-    *cube = load_mesh_from("default_model/cube-uv.obj");
+    *cube = load_mesh_from("access/default_model/cube-uv.obj");
     cube->set_material(cube_mat);
     cube->update_material();
     cube->set_position({1.4, 0, 0});
@@ -127,7 +127,7 @@ inline void all_textures(ReyTreycer& rt) {
     dodeca_mat.texture = color_tex;
 
     Mesh* dodecah = new Mesh;
-    *dodecah = load_mesh_from("default_model/dodecahedron.obj");
+    *dodecah = load_mesh_from("access/default_model/dodecahedron.obj");
     dodecah->set_material(dodeca_mat);
     dodecah->update_material();
     dodecah->set_position({-2, 0, 0});

@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
 
     // add a plane to visualize focal length
     // it will be used in the gui app with the index 0
-    Mesh FOCAL_PLANE = load_mesh_from("default_model/plane.obj");
+    Mesh FOCAL_PLANE = load_mesh_from("access/default_model/plane.obj");
     FOCAL_PLANE.visible = false;
     FOCAL_PLANE.set_material(FOCAL_PLANE_MAT);
     FOCAL_PLANE.update_material();
